@@ -473,6 +473,17 @@ static int pm_chg_masked_write(struct pm8921_chg_chip *chip, u16 addr,
 	return 0;
 }
 
+static int pm_chg_get_rt_status(struct pm8921_chg_chip *chip, int irq_id)
+{
+	return pm8xxx_read_irq_stat(chip->dev->parent,
+					chip->pmic_chg_irq[irq_id]);
+}
+
+static int is_batfet_closed(struct pm8921_chg_chip *chip)
+{
+	return pm_chg_get_rt_status(chip, BATFET_IRQ);
+}
+
 #define CAPTURE_FSM_STATE_CMD	0xC2
 #define READ_BANK_7		0x70
 #define READ_BANK_4		0x40
@@ -1115,12 +1126,6 @@ static void pm8921_chg_disable_irq(struct pm8921_chg_chip *chip, int interrupt)
 static int pm8921_chg_is_enabled(struct pm8921_chg_chip *chip, int interrupt)
 {
 	return test_bit(interrupt, chip->enabled_irqs);
-}
-
-static int pm_chg_get_rt_status(struct pm8921_chg_chip *chip, int irq_id)
-{
-	return pm8xxx_read_irq_stat(chip->dev->parent,
-					chip->pmic_chg_irq[irq_id]);
 }
 
 /* Treat OverVoltage/UnderVoltage as source missing */
@@ -1783,6 +1788,15 @@ int pm8921_is_battery_present(void)
 }
 EXPORT_SYMBOL(pm8921_is_battery_present);
 
+int pm8921_is_batfet_closed(void)
+{
+	if (!the_chip) {
+		pr_err("called before init\n");
+		return -EINVAL;
+	}
+	return is_batfet_closed(the_chip);
+}
+EXPORT_SYMBOL(pm8921_is_batfet_closed);
 /*
  * Disabling the charge current limit causes current
  * current limits to have no monitoring. An adequate charger
