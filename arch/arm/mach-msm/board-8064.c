@@ -618,7 +618,7 @@ static struct platform_device msm8064_device_saw_regulator_core3 = {
 };
 
 static struct platform_device *common_devices[] __initdata = {
-	&msm8960_device_acpuclk,
+	&apq8064_device_acpuclk,
 	&apq8064_device_dmov,
 	&apq8064_device_qup_i2c_gsbi4,
 	&apq8064_device_qup_spi_gsbi5,
