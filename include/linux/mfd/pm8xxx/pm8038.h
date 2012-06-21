@@ -28,6 +28,12 @@
 #include <linux/mfd/pm8xxx/misc.h>
 #include <linux/regulator/pm8xxx-regulator.h>
 #include <linux/mfd/pm8xxx/pm8xxx-adc.h>
+#include <linux/mfd/pm8xxx/pm8921-charger.h>
+#include <linux/mfd/pm8xxx/pm8921-bms.h>
+#include <linux/leds-pm8xxx.h>
+#include <linux/mfd/pm8xxx/ccadc.h>
+#include <linux/mfd/pm8xxx/spk.h>
+#include <linux/mfd/pm8xxx/tm.h>
 
 #define PM8038_CORE_DEV_NAME "pm8038-core"
 
@@ -58,6 +64,9 @@
 #define PM8038_USB_ID_IN_IRQ(base)	(base + PM8921_IRQ_BLOCK_BIT(6, 1))
 
 #define PM8038_RESOUT_IRQ		PM8038_IRQ_BLOCK_BIT(6, 4)
+
+#define PM8038_OVERTEMP_IRQ		PM8038_IRQ_BLOCK_BIT(4, 2)
+#define PM8038_TEMPSTAT_IRQ		PM8038_IRQ_BLOCK_BIT(6, 7)
 
 struct pm8038_platform_data {
 	int					irq_base;
