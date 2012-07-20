@@ -484,6 +484,8 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.r_sense		= 10,
 	.v_cutoff		= 3400,
 	.max_voltage_uv		= MAX_VOLTAGE_MV * 1000,
+	.rconn_mohm		= 18,
+	.shutdown_soc_valid_limit = 20,
 };
 
 #define	PM8921_LC_LED_MAX_CURRENT	2	/* I = 4mA */
