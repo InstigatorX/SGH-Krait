@@ -348,6 +348,7 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.v_cutoff		= 3400,
 	.max_voltage_uv		= MAX_VOLTAGE_MV * 1000,
 	.shutdown_soc_valid_limit = 20,
+	.adjust_soc_low_threshold = 25,
 };
 
 >>>>>>> 3c37882... power: bms/ccadc: move ccadc calibration to ccadc driver
