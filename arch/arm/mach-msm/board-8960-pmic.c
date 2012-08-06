@@ -446,6 +446,7 @@ static int pm8921_therm_mitigation[] = {
 };
 
 #define MAX_VOLTAGE_MV		4200
+#define CHG_TERM_MA		100
 static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 #ifdef CONFIG_PM8921_SEC_CHARGER
 	.safety_time		= 512, /* max */
@@ -463,7 +464,7 @@ static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.min_voltage		= 3200,
 	.resume_voltage_delta   = 60,
 	.resume_charge_percent  = 99,	
-	.term_current		= 100,
+	.term_current		= CHG_TERM_MA,
 	.temp_check_period	= 1,
 	.max_bat_chg_current	= 1100,
 	.cool_bat_chg_current	= 350,
@@ -480,13 +481,14 @@ static struct pm8xxx_misc_platform_data pm8xxx_misc_pdata = {
 };
 
 static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
-	.battery_type		= BATT_UNKNOWN,
-	.r_sense		= 10,
-	.v_cutoff		= 3400,
-	.max_voltage_uv		= MAX_VOLTAGE_MV * 1000,
-	.rconn_mohm		= 18,
-	.shutdown_soc_valid_limit = 20,
-	.adjust_soc_low_threshold = 25,
+	.battery_type			= BATT_UNKNOWN,
+	.r_sense			= 10,
+	.v_cutoff			= 3400,
+	.max_voltage_uv			= MAX_VOLTAGE_MV * 1000,
+	.rconn_mohm			= 18,
+	.shutdown_soc_valid_limit	= 20,
+	.adjust_soc_low_threshold	= 25,
+	.chg_term_ua			= CHG_TERM_MA * 1000,
 };
 
 #define	PM8921_LC_LED_MAX_CURRENT	2	/* I = 4mA */
