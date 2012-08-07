@@ -26,11 +26,12 @@ static struct cpuidle_driver msm_cpuidle_driver = {
 	.owner = THIS_MODULE,
 };
 
-
 static int msm_cpuidle_enter(
 	struct cpuidle_device *dev, struct cpuidle_state *state)
 {
 	int ret;
+
+	local_irq_disable();
 
 #ifdef CONFIG_CPU_PM
 	cpu_pm_enter();
