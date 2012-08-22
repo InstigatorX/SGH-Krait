@@ -795,7 +795,7 @@ static void __init reserve_ion_memory(void)
 
 			if (!strcmp(heap->name, "mm")
 				&& (mb->start >= 0xc0000000)) {
-				printk(KERN_ERR "heap->name %s, mb->start %lx\n",
+				printk(KERN_ERR "heap->name %s, mb->start %ulx\n",
 					heap->name, mb->start);
 				heap->size = MSM_PMEM_ADSP_SIZE_FOR_2GB;
 			}
