@@ -1744,7 +1744,6 @@ static struct platform_device msm_rpm_log_device = {
 };
 
 static struct platform_device *common_devices[] __initdata = {
-	&msm8960_device_acpuclk,
 	&msm8960_device_dmov,
 	&msm_device_smd,
 	&msm8960_device_uart_gsbi5,
@@ -2197,8 +2196,18 @@ static void __init msm8930_cdp_init(void)
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
 	msm8930_init_buses();
+<<<<<<< HEAD
 	platform_add_devices(msm_footswitch_devices,
 		msm_num_footswitch_devices);
+=======
+	platform_add_devices(msm8930_footswitch, msm8930_num_footswitch);
+	if (cpu_is_msm8627())
+		platform_device_register(&msm8627_device_acpuclk);
+	else if (cpu_is_msm8930())
+		platform_device_register(&msm8930_device_acpuclk);
+	else if (cpu_is_msm8930aa())
+		platform_device_register(&msm8930aa_device_acpuclk);
+>>>>>>> 21ceacf... msm: acpuclock: Use acpuclock-krait for 8930, 8930aa and 8627
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 	/*
 	 * TODO: When physical 8930/PM8038 hardware becomes
