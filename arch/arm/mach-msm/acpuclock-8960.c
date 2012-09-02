@@ -985,7 +985,7 @@ static struct acpu_level acpu_freq_tbl_8627[] = {
 	{ 0, { 0 } }
 };
 
-static unsigned long acpuclk_8960_get_rate(int cpu)
+unsigned long acpuclk_8960_get_rate(int cpu)
 {
 	return scalable[cpu].current_speed->khz;
 }
@@ -1690,6 +1690,46 @@ static int __cpuinit acpuclock_cpu_callback(struct notifier_block *nfb,
 static struct notifier_block __cpuinitdata acpuclock_cpu_notifier = {
 	.notifier_call = acpuclock_cpu_callback,
 };
+
+uint32_t acpu_check_khz_value(unsigned long khz)
+{
+	struct acpu_level *f;
+
+	if (khz > 1944000)
+		return CONFIG_MSM_CPU_FREQ_MAX;
+
+	if (khz < 384000)
+		return CONFIG_MSM_CPU_FREQ_MIN;
+
+	for (f = acpu_freq_tbl_8960_kraitv2_fast; f->speed.khz != 0; f++) {
+		if (khz < 384000) {
+			if (f->speed.khz == (khz*1000))
+				return f->speed.khz;
+			if ((khz*1000) > f->speed.khz) {
+				f++;
+				if ((khz*1000) < f->speed.khz) {
+					f--;
+					return f->speed.khz;
+				}
+				f--;
+			}
+		}
+		if (f->speed.khz == khz) {
+			return 1;
+		}
+		if (khz > f->speed.khz) {
+			f++;
+			if (khz < f->speed.khz) {
+				f--;
+				return f->speed.khz;
+			}
+			f--;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(acpu_check_khz_value);
 
 static const int krait_needs_vmin(void)
 {
