@@ -17,7 +17,7 @@ cp drivers/net/wireless/btlock/btlock.ko /Volumes/Kernel/packaging/Boot-I747/rea
 cp drivers/scsi/scsi_wait_scan.ko /Volumes/Kernel/packaging/Boot-I747/realsystem/lib/modules
 cp drivers/spi/spidev.ko /Volumes/Kernel/packaging/Boot-I747/realsystem/lib/modules
 cp arch/arm/boot/zImage /Volumes/Kernel/packaging/Boot-I747
-cp lights.msm8660.so /Volumes/Kernel/packaging/Boot-I747/realsystem/lib/hw
+cp lights.msm8960.so /Volumes/Kernel/packaging/Boot-I747/realsystem/lib/hw
 cd /Volumes/Kernel/packaging/Boot-I747
 zip -r ~/Downloads/0Builds/InstigatorX-I747-Kernel-"$timestamp".zip *
 echo $timestamp
