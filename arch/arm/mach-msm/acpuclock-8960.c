@@ -1731,6 +1731,7 @@ uint32_t acpu_check_khz_value(unsigned long khz)
 }
 EXPORT_SYMBOL(acpu_check_khz_value);
 
+/*
 static const int krait_needs_vmin(void)
 {
 	switch (read_cpuid_id()) {
@@ -1749,6 +1750,7 @@ static void kraitv2_apply_vmin(struct acpu_level *tbl)
 		if (tbl->vdd_core < 1150000)
 			tbl->vdd_core = 1150000;
 }
+*/
 
 static struct acpu_level * __init select_freq_plan(void)
 {
@@ -1823,8 +1825,10 @@ static struct acpu_level * __init select_freq_plan(void)
 	} else {
 		BUG();
 	}
+	/*
 	if (krait_needs_vmin())
 		kraitv2_apply_vmin(acpu_freq_tbl);
+	*/
 
 	/* Find the max supported scaling frequency. */
 	for (l = acpu_freq_tbl; l->speed.khz != 0; l++)
