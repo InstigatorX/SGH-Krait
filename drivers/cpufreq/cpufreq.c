@@ -2171,13 +2171,13 @@ int cpufreq_register_driver(struct cpufreq_driver *driver_data)
 		}
 	}
 
-	register_hotcpu_notifier(&cpufreq_cpu_notifier);
-	pr_debug("driver %s up and running\n", driver_data->name);
-
 #ifdef CONFIG_SEC_DVFS
 	cpufreq_queue_priv.wq = create_workqueue("cpufreq_queue");
 	INIT_WORK(&cpufreq_queue_priv.work, cpufreq_set_limit_work);
 #endif
+
+	register_hotcpu_notifier(&cpufreq_cpu_notifier);
+	pr_debug("driver %s up and running\n", driver_data->name);
 
 	return 0;
 err_sysdev_unreg:
