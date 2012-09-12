@@ -307,7 +307,7 @@ obj-$(CONFIG_MACH_ESPRESSO10_ATT) += board-espresso10-battery.o
 obj-$(CONFIG_MACH_COMANCHE) += board-comanche-battery.o
 obj-$(CONFIG_MACH_EXPRESS) += board-express-battery.o
 
-obj-$(CONFIG_PM8921_BMS) += bms-batterydata.o bms-batterydata-desay.o
+obj-$(CONFIG_PM8921_BMS) += bms-batterydata.o bms-batterydata-desay.o batterydata-lib.o
 obj-$(CONFIG_MACH_APQ8064_SIM) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_MACH_APQ8064_RUMI3) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_ARCH_MSM9615) += board-9615.o devices-9615.o board-9615-regulator.o
