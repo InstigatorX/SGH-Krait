@@ -32,7 +32,6 @@
 #include <linux/mfd/pm8xxx/pm8921-bms.h>
 #include <linux/leds-pm8xxx.h>
 #include <linux/mfd/pm8xxx/ccadc.h>
-#include <linux/mfd/pm8xxx/spk.h>
 #include <linux/mfd/pm8xxx/tm.h>
 
 #define PM8038_CORE_DEV_NAME "pm8038-core"
@@ -54,6 +53,7 @@
 
 /* PMIC Interrupts */
 #define PM8038_RTC_ALARM_IRQ		PM8038_IRQ_BLOCK_BIT(4, 7)
+#define PM8038_BATT_ALARM_IRQ		PM8921_IRQ_BLOCK_BIT(5, 6)
 #define PM8038_PWRKEY_REL_IRQ		PM8038_IRQ_BLOCK_BIT(6, 2)
 #define PM8038_PWRKEY_PRESS_IRQ		PM8038_IRQ_BLOCK_BIT(6, 3)
 #define PM8038_KEYPAD_IRQ		PM8038_IRQ_BLOCK_BIT(9, 2)
@@ -77,8 +77,11 @@ struct pm8038_platform_data {
 	struct pm8xxx_pwrkey_platform_data	*pwrkey_pdata;
 	struct pm8xxx_misc_platform_data	*misc_pdata;
 	struct pm8xxx_regulator_platform_data	*regulator_pdatas;
+	struct pm8921_charger_platform_data	*charger_pdata;
+	struct pm8921_bms_platform_data		*bms_pdata;
 	int					num_regulators;
 	struct pm8xxx_adc_platform_data		*adc_pdata;
+	struct pm8xxx_ccadc_platform_data	*ccadc_pdata;
 };
 
 #endif
