@@ -1706,7 +1706,6 @@ static const int krait_needs_vmin(void)
 		return 0;
 	};
 }
-*/
 
 static void kraitv2_apply_vmin(struct acpu_level *tbl)
 {
@@ -1714,6 +1713,7 @@ static void kraitv2_apply_vmin(struct acpu_level *tbl)
 		if (tbl->vdd_core < 1150000)
 			tbl->vdd_core = 1150000;
 }
+*/
 
 static struct acpu_level * __init select_freq_plan(void)
 {
