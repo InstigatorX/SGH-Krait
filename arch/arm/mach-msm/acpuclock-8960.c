@@ -1694,7 +1694,6 @@ static struct notifier_block __cpuinitdata acpuclock_cpu_notifier = {
 	.notifier_call = acpuclock_cpu_callback,
 };
 
-/*
 static const int krait_needs_vmin(void)
 {
 	switch (read_cpuid_id()) {
@@ -1788,10 +1787,9 @@ static struct acpu_level * __init select_freq_plan(void)
 	} else {
 		BUG();
 	}
-/*
 	if (krait_needs_vmin())
 		kraitv2_apply_vmin(acpu_freq_tbl);
-*/
+
 	/* Find the max supported scaling frequency. */
 	for (l = acpu_freq_tbl; l->speed.khz != 0; l++)
 		if (l->use_for_scaling)
