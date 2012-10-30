@@ -351,6 +351,12 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.shutdown_soc_valid_limit	= 20,
 	.adjust_soc_low_threshold	= 25,
 	.chg_term_ua			= CHG_TERM_MA * 1000,
+<<<<<<< HEAD
+=======
+	.rconn_mohm			= 18,
+	.normal_voltage_calc_ms		= 20000,
+	.low_voltage_calc_ms		= 1000,
+>>>>>>> 683472d... power: pm8921-bms: use configurable poll times
 };
 
 >>>>>>> 3c37882... power: bms/ccadc: move ccadc calibration to ccadc driver
