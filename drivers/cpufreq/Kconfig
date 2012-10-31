@@ -260,9 +260,6 @@ config CPU_FREQ_GOV_BADASS_3_PHASE_FREQ
 	depends on CPU_FREQ_GOV_BADASS_2_PHASE
 	depends on CPU_FREQ_GOV_BADASS_3_PHASE
 
-config CPU_FREQ_GOV_SLP
-	tristate "'slp' cpufreq policy governor"
-
 config SEC_DVFS
 	bool "DVFS job"
 	default n
