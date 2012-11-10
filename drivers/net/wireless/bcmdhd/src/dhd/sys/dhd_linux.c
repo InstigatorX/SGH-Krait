@@ -397,11 +397,7 @@ uint dhd_pkt_filter_init = 0;
 module_param(dhd_pkt_filter_init, uint, 0);
 
 /* Pkt filter mode control */
-#ifdef GAN_LITE_NAT_KEEPALIVE_FILTER
-uint dhd_master_mode = FALSE;
-#else
 uint dhd_master_mode = TRUE;
-#endif /* GAL_LITE_NAT_KEEPALIVE_FILTER */
 module_param(dhd_master_mode, uint, 1);
 
 #ifdef DHDTHREAD
@@ -3825,22 +3821,16 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif /* ARP_OFFLOAD_SUPPORT */
 
 #ifdef PKT_FILTER_SUPPORT
-	/* Setup defintions for pktfilter , enable in suspend */
+	/* Setup default defintions for pktfilter */
 	dhd->pktfilter_count = 5;
-#ifdef GAN_LITE_NAT_KEEPALIVE_FILTER
-	/* Setup filter to block broadcast and NAT Keepalive packets */
-	dhd->pktfilter[0] = "100 0 0 0 0xffffff 0xffffff"; /* discard all broadcast packets */
-	dhd->pktfilter[1] = "102 0 0 36 0xffffffff 0x11940009"; /* discard NAT Keepalive packets */
-	dhd->pktfilter[2] = "104 0 0 38 0xffffffff 0x11940009"; /* discard NAT Keepalive packets */
-	dhd->pktfilter[3] = NULL;
-#else
 	/* Setup filter to allow only unicast */
 	dhd->pktfilter[0] = "100 0 0 0 0x01 0x00";
 	dhd->pktfilter[1] = NULL;
 	dhd->pktfilter[2] = NULL;
 	dhd->pktfilter[3] = NULL;
+	/* Add filter to pass multicastDNS packet and NOT filter out as Broadcast */
 	dhd->pktfilter[4] = "104 0 0 0 0xFFFFFFFFFFFF 0x01005E0000FB";
-#endif /* GAN_LITE_NAT_KEEPALIVE_FILTER */
+
 #if defined(SOFTAP)
 	if (ap_fw_loaded) {
 		int i;
