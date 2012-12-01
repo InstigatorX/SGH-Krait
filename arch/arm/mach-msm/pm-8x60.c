@@ -840,6 +840,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev)
 	uint32_t latency_us;
 	uint32_t sleep_us;
 	int i;
+	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 
 	latency_us = (uint32_t) pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
 	sleep_us = (uint32_t) ktime_to_ns(tick_nohz_get_sleep_length());
@@ -1015,9 +1016,14 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 		break;
 	}
 
+	case MSM_PM_SLEEP_MODE_NOT_SELECTED:
+		goto cpuidle_enter_bail;
+		break;
+
 	default:
 		__WARN();
 		goto cpuidle_enter_bail;
+		break;
 	}
 
 	time = ktime_to_ns(ktime_get()) - time;
