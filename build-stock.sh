@@ -1,3 +1,4 @@
+set -e
 timestamp=$(date '+%s')
 
 export LOCALVERSION="$timestamp"
@@ -27,7 +28,7 @@ cd ../packaging/staging
 
 cd ../Bootv2
 
-rm -rf system/lib/hw
+rm -rf system/lib/hw || true
 
 zip -r ~/Downloads/0Builds/InstigatorX-I747-Kernel-"$timestamp".zip *
 
