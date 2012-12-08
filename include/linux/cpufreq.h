@@ -350,7 +350,7 @@ static inline unsigned int cpufreq_quick_get(unsigned int cpu)
 #define MIN_FREQ_LIMIT 384000
 #ifdef CONFIG_CPU_OVERCLOCK
 #ifdef CONFIG_CPU_UTLIMATE
-#define MAX_FREQ_LIMIT 1836000
+#define MAX_FREQ_LIMIT 1890000
 #else
 #define MAX_FREQ_LIMIT 1620000
 #endif
