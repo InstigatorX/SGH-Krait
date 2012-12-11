@@ -73,6 +73,11 @@ int msm_bam_dmux_ul_power_unvote(void);
 int msm_bam_dmux_is_ch_full(uint32_t id);
 
 int msm_bam_dmux_is_ch_low(uint32_t id);
+
+int msm_bam_dmux_reg_notify(void *priv,
+	void (*notify)(void *priv, int event_type,
+	unsigned long data));
+
 #else
 int msm_bam_dmux_open(uint32_t id, void *priv,
 		       void (*notify)(void *priv, int event_type,
@@ -114,6 +119,13 @@ int msm_bam_dmux_is_ch_full(uint32_t id)
 int msm_bam_dmux_is_ch_low(uint32_t id)
 {
 	return -ENODEV;
+}
+
+static inline int msm_bam_dmux_reg_notify(void *priv,
+                      void (*notify)(void *priv, int event_type,
+                                               unsigned long data))
+{
+       return -ENODEV;
 }
 #endif
 #endif /* _BAM_DMUX_H */
