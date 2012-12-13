@@ -69,6 +69,11 @@ static unsigned int input_boost_freq = 918000;
 /* Go to hi speed when CPU load at or above this value. */
 #define DEFAULT_GO_HISPEED_LOAD 85
 static unsigned long go_hispeed_load;
+
+/* Target load.  Lower values result in higher CPU speeds. */
+#define DEFAULT_TARGET_LOAD 90
+static unsigned long target_load = DEFAULT_TARGET_LOAD;
+
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
  */
@@ -167,35 +172,25 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (load_since_change > cpu_load)
 		cpu_load = load_since_change;
 
-	if (cpu_load >= go_hispeed_load) {
-		if (pcpu->target_freq < hispeed_freq &&
-		    hispeed_freq < pcpu->policy->max) {
-			new_freq = hispeed_freq;
-		} else {
-			new_freq = pcpu->policy->max * cpu_load / 100;
+	if ((cpu_load >= go_hispeed_load) &&
+	    pcpu->target_freq < hispeed_freq)
+		new_freq = hispeed_freq;
+	else
+		new_freq = pcpu->policy->cur * cpu_load / target_load;
 
-			if (new_freq < hispeed_freq)
-				new_freq = hispeed_freq;
-
-			if (pcpu->target_freq == hispeed_freq &&
-			    new_freq > hispeed_freq &&
-			    now - pcpu->hispeed_validate_time
-			    < above_hispeed_delay_val) {
-				trace_cpufreq_interactive_notyet(data, cpu_load,
-								 pcpu->target_freq,
-								 new_freq);
-				goto rearm;
-			}
-		}
-	} else {
-		new_freq = hispeed_freq * cpu_load / 100;
+	if (pcpu->target_freq >= hispeed_freq &&
+	    new_freq > pcpu->target_freq &&
+	    now - pcpu->hispeed_validate_time < above_hispeed_delay_val) {
+		trace_cpufreq_interactive_notyet(
+			data, cpu_load, pcpu->target_freq,
+			pcpu->policy->cur, new_freq);
+		goto rearm;
 	}
 
-	if (new_freq <= hispeed_freq)
-		pcpu->hispeed_validate_time = now;
+	pcpu->hispeed_validate_time = now;
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
-					   new_freq, CPUFREQ_RELATION_H,
+					   new_freq, CPUFREQ_RELATION_L,
 					   &index)) {
 		pr_warn_once("timer %d: cpufreq_frequency_table_target error\n",
 			     (int) data);
@@ -210,8 +205,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 */
 	if (new_freq < pcpu->floor_freq) {
 		if (now - pcpu->floor_validate_time < min_sample_time) {
-			trace_cpufreq_interactive_notyet(data, cpu_load,
-					 pcpu->target_freq, new_freq);
+			trace_cpufreq_interactive_notyet(
+				data, cpu_load, pcpu->target_freq,
+				pcpu->policy->cur, new_freq);
 			goto rearm;
 		}
 	}
@@ -220,13 +216,14 @@ static void cpufreq_interactive_timer(unsigned long data)
 	pcpu->floor_validate_time = now;
 
 	if (pcpu->target_freq == new_freq) {
-		trace_cpufreq_interactive_already(data, cpu_load,
-						  pcpu->target_freq, new_freq);
+		trace_cpufreq_interactive_already(
+			data, cpu_load, pcpu->target_freq,
+			pcpu->policy->cur, new_freq);
 		goto rearm_if_notmax;
 	}
 
 	trace_cpufreq_interactive_target(data, cpu_load, pcpu->target_freq,
-					 new_freq);
+					 pcpu->policy->cur, new_freq);
 	pcpu->target_set_time_in_idle = now_idle;
 	pcpu->target_set_time = now;
 
@@ -436,6 +433,30 @@ static ssize_t store_input_boost_freq(struct kobject *kobj,
 static struct global_attr input_boost_freq_attr = __ATTR(input_boost_freq, 0644,
 		show_input_boost_freq, store_input_boost_freq);
 
+static ssize_t show_target_load(
+	struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%lu\n", target_load);
+}
+
+static ssize_t store_target_load(
+	struct kobject *kobj, struct attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	target_load = val;
+	return count;
+}
+
+static struct global_attr target_load_attr =
+	__ATTR(target_load, S_IRUGO | S_IWUSR,
+		show_target_load, store_target_load);
+
 static ssize_t show_hispeed_freq(struct kobject *kobj,
 				 struct attribute *attr, char *buf)
 {
@@ -567,6 +588,7 @@ static struct global_attr boostpulse =
 	__ATTR(boostpulse, 0200, NULL, store_boostpulse);
 
 static struct attribute *interactive_attributes[] = {
+	&target_load_attr.attr,
 	&input_boost_freq_attr.attr,
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
