@@ -19,19 +19,15 @@ cp drivers/net/wireless/btlock/btlock.ko ../packaging/Bootv2/system/lib/modules
 cp drivers/scsi/scsi_wait_scan.ko ../packaging/Bootv2/system/lib/modules
 cp drivers/spi/spidev.ko ../packaging/Bootv2/system/lib/modules
 
-cp arch/arm/boot/zImage ../packaging/staging
+../packaging/mkbootfs ramdisk/initramfs | gzip > ramdisk/ramdisk.gz
+../packaging/mkbootimg --kernel arch/arm/boot/zImage --ramdisk ramdisk/ramdisk.gz --cmdline "androidboot.hardware=qcom user_debug=31" -o build_dir/boot.img --base 0x80200000 --pagesize 2048 --ramdiskaddr 0x81500000
 
-cd ../packaging/staging
+cd build_dir
 
-#../mkbootfs initramfs | gzip > ramdisk.gz
-../mkbootimg --kernel zImage --ramdisk ../747M/boot.img-ramdisk.gz --cmdline "androidboot.hardware=qcom user_debug=31" -o ../Bootv2/boot.img --base 0x80200000 --pagesize 2048 --ramdiskaddr 0x81500000
-
-cd ../Bootv2
-
-rm -rf system/lib/hw || true
-
-zip -r ~/Downloads/0Builds/InstigatorX-I747-Kernel-"$timestamp".zip *
+zip -r ~/Google\ Drive/I747\ Kernels/InstigatorX-I747-Kernel-"$timestamp".zip *
 
 echo $timestamp
 
-cd /Volumes/Android/Kernel-747M
+cd ..
+
+git tag -a $timestamp -m buildtag
