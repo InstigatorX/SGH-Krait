@@ -721,8 +721,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #endif
 #ifdef PKT_FILTER_SUPPORT
 				/* disable pkt filter */
-				/* override: keep pkt filters active when screen on*/
-				//dhd_enable_packet_filter(0, dhd);
+				dhd_enable_packet_filter(0, dhd);
 #endif /* PKT_FILTER_SUPPORT */
 #ifdef PASS_ALL_MCAST_PKTS
 				allmulti = 1;
