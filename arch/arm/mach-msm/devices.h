@@ -83,10 +83,6 @@ extern struct platform_device msm8960_device_ispif;
 extern struct platform_device msm8960_device_vfe;
 extern struct platform_device msm8960_device_vpe;
 extern struct platform_device msm8960_device_cache_erp;
-#ifdef CONFIG_MSM_EBI_ERP
-extern struct platform_device msm8960_device_ebi1_ch0_erp;
-extern struct platform_device msm8960_device_ebi1_ch1_erp;
-#endif
 
 extern struct platform_device apq8064_device_uart_gsbi1;
 extern struct platform_device apq8064_device_uart_gsbi3;

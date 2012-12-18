@@ -4365,10 +4365,6 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm_rtb_device,
 #endif
 	&msm8960_device_cache_erp,
-#ifdef CONFIG_MSM_EBI_ERP
-	&msm8960_device_ebi1_ch0_erp,
-	&msm8960_device_ebi1_ch1_erp,
-#endif
 #ifdef CONFIG_MSM_CACHE_DUMP
 	&msm_cache_dump_device,
 #endif
