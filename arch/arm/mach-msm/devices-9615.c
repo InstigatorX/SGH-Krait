@@ -99,6 +99,11 @@ struct platform_device msm9615_device_dmov = {
 	},
 };
 
+struct platform_device msm9615_device_acpuclk = {
+	.name           = "acpuclk-9615",
+	.id             = -1,
+};
+
 #define MSM_USB_BAM_BASE     0x12502000
 #define MSM_USB_BAM_SIZE     0x3DFFF
 

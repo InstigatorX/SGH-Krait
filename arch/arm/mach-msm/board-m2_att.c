@@ -148,7 +148,6 @@
 #include <mach/cpuidle.h>
 #include "rpm_resources.h"
 #include "mpm.h"
-#include "acpuclock.h"
 #include "rpm_log.h"
 #include "smd_private.h"
 #ifdef CONFIG_NFC_PN544
@@ -4215,6 +4214,7 @@ static struct platform_device sec_device_jack = {
 #endif
 
 static struct platform_device *common_devices[] __initdata = {
+	&msm8960_device_acpuclk,
 	&msm8960_device_dmov,
 	&msm_device_smd,
 	&msm8960_device_uart_gsbi5,
@@ -5217,8 +5217,7 @@ static void __init samsung_m2_att_init(void)
 	msm8960_init_hsic();
 	msm8960_init_cam();
 	msm8960_init_mmc();
-	acpuclk_init(&acpuclk_8960_soc_data);
-	
+		
 	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
 	set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
 	#endif

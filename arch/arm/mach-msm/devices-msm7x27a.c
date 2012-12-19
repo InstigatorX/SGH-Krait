@@ -214,6 +214,37 @@ struct platform_device msm_device_dmov = {
 	},
 };
 
+static struct acpuclk_pdata msm7x27a_acpuclk_pdata = {
+	.max_speed_delta_khz = 400000,
+};
+
+struct platform_device msm7x27a_device_acpuclk = {
+	.name		= "acpuclk-7627",
+	.id		= -1,
+	.dev.platform_data = &msm7x27a_acpuclk_pdata,
+};
+
+static struct acpuclk_pdata msm7x27aa_acpuclk_pdata = {
+	.max_speed_delta_khz = 504000,
+};
+
+struct platform_device msm7x27aa_device_acpuclk = {
+	.name		= "acpuclk-7627",
+	.id		= -1,
+	.dev.platform_data = &msm7x27aa_acpuclk_pdata,
+};
+
+static struct acpuclk_pdata msm8625_acpuclk_pdata = {
+	/* TODO: Need to update speed delta from H/w Team */
+	.max_speed_delta_khz = 604800,
+};
+
+struct platform_device msm8625_device_acpuclk = {
+	.name		= "acpuclk-7627",
+	.id		= -1,
+	.dev.platform_data = &msm8625_acpuclk_pdata,
+};
+
 struct platform_device msm_device_smd = {
 	.name	= "msm_smd",
 	.id	= -1,
@@ -797,9 +828,9 @@ int __init msm7x2x_misc_init(void)
 {
 	msm_clock_init(&msm7x27a_clock_init_data);
 	if (cpu_is_msm7x27aa())
-		acpuclk_init(&acpuclk_7x27aa_soc_data);
+		platform_device_register(&msm7x27aa_device_acpuclk);
 	else
-		acpuclk_init(&acpuclk_7x27a_soc_data);
+		platform_device_register(&msm7x27aa_device_acpuclk);
 
 
 	return 0;

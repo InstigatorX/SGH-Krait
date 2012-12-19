@@ -34,6 +34,11 @@
 #include <mach/usbdiag.h>
 #include <mach/rpc_hsusb.h>
 
+struct platform_device msm8x50_device_acpuclk = {
+	.name		= "acpuclk-8x50",
+	.id		= -1,
+};
+
 static struct resource resources_uart1[] = {
 	{
 		.start	= INT_UART1,
