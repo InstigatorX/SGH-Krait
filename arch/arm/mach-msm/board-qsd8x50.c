@@ -2408,7 +2408,7 @@ static void __init qsd8x50_init(void)
 {
 	msm_clock_init(&qds8x50_clock_init_data);
 	qsd8x50_cfg_smc91x();
-	platform_device_register(&msm8x50_device_acpuclk);
+	acpuclk_init(&acpuclk_8x50_soc_data);
 
 	msm_hsusb_pdata.swfi_latency =
 		msm_pm_data

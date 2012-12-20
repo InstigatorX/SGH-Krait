@@ -28,7 +28,6 @@
 #include "devices.h"
 #include "gpio_hw.h"
 #include "footswitch.h"
-#include "acpuclock.h"
 
 #include <asm/mach/flash.h>
 
@@ -399,16 +398,6 @@ struct platform_device msm_device_dmov = {
 	.dev = {
 		.platform_data = &msm_dmov_pdata,
 	},
-};
-
-static struct acpuclk_pdata msm7x27_acpuclk_pdata = {
-	.max_speed_delta_khz = 400000,
-};
-
-struct platform_device msm7x27_device_acpuclk = {
-	.name		= "acpuclk-7627",
-	.id		= -1,
-	.dev.platform_data = &msm7x27_acpuclk_pdata,
 };
 
 #define MSM_SDC1_BASE         0xA0400000

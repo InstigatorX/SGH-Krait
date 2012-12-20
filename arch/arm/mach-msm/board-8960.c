@@ -96,6 +96,7 @@
 #include <mach/cpuidle.h>
 #include "rpm_resources.h"
 #include "mpm.h"
+#include "acpuclock.h"
 #include "rpm_log.h"
 #include "smd_private.h"
 #include "pm-boot.h"
@@ -2105,7 +2106,6 @@ static struct platform_device msm_rpm_log_device = {
 };
 
 static struct platform_device *common_devices[] __initdata = {
-	&msm8960_device_acpuclk,
 	&msm8960_device_dmov,
 	&msm_device_smd,
 	&msm8960_device_uart_gsbi5,
@@ -2650,6 +2650,7 @@ static void __init msm8960_sim_init(void)
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 	msm8960_pm8921_gpio_mpp_init();
 	platform_add_devices(sim_devices, ARRAY_SIZE(sim_devices));
+	acpuclk_init(&acpuclk_8960_soc_data);
 
 	msm8960_device_qup_spi_gsbi1.dev.platform_data =
 				&msm8960_qup_spi_gsbi1_pdata;
@@ -2760,6 +2761,7 @@ static void __init msm8960_cdp_init(void)
 	msm8960_init_hsic();
 	msm8960_init_cam();
 	msm8960_init_mmc();
+	acpuclk_init(&acpuclk_8960_soc_data);
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
 	register_i2c_devices();

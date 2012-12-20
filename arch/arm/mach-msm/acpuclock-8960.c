@@ -13,7 +13,6 @@
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -23,7 +22,6 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/regulator/consumer.h>
-#include <linux/platform_device.h>
 
 #include <asm/mach-types.h>
 #include <asm/cpu.h>
@@ -1948,7 +1946,7 @@ static struct acpuclk_data acpuclk_8960_data = {
 	.wait_for_irq_khz = STBY_KHZ,
 };
 
-static int __init acpuclk_8960_probe(struct platform_device *pdev)
+static int __init acpuclk_8960_init(struct acpuclk_soc_data *soc_data)
 {
 	struct acpu_level *max_acpu_level = select_freq_plan();
 
@@ -1966,15 +1964,10 @@ static int __init acpuclk_8960_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver acpuclk_8960_driver = {
-  .driver = {
-      .name = "acpuclk-8960",
-      .owner = THIS_MODULE,
-  },
+struct acpuclk_soc_data acpuclk_8960_soc_data __initdata = {
+	.init = acpuclk_8960_init,
 };
 
-static int __init acpuclk_8960_init(void)
-{
-  return platform_driver_probe(&acpuclk_8960_driver, acpuclk_8960_probe);
-}
-device_initcall(acpuclk_8960_init);
+struct acpuclk_soc_data acpuclk_8930_soc_data __initdata = {
+	.init = acpuclk_8960_init,
+};

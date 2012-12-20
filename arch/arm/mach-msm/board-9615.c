@@ -35,6 +35,7 @@
 #include "board-9615.h"
 #include <mach/cpuidle.h>
 #include "pm.h"
+#include "acpuclock.h"
 #include "pm-boot.h"
 
 static struct pm8xxx_adc_amux pm8018_adc_channels_data[] = {
@@ -373,7 +374,6 @@ static struct platform_device msm_device_charger = {
 #endif
 
 static struct platform_device *common_devices[] = {
-	&msm9615_device_acpuclk,
 	&msm9615_device_dmov,
 	&msm_device_smd,
 #ifdef CONFIG_LTC4088_CHARGER
@@ -444,7 +444,9 @@ static void __init msm9615_common_init(void)
 	msm_device_usb_bam.dev.platform_data = &msm_usb_bam_pdata;
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 
-		/* Ensure ar6000pm device is registered before MMC/SDC */
+	acpuclk_init(&acpuclk_9615_soc_data);
+
+	/* Ensure ar6000pm device is registered before MMC/SDC */
 	msm9615_init_ar6000pm();
 
 	msm9615_init_mmc();

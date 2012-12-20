@@ -14,7 +14,6 @@
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/kernel.h>
-#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -23,7 +22,6 @@
 #include <linux/errno.h>
 #include <linux/cpufreq.h>
 #include <linux/clk.h>
-#include <linux/platform_device.h>
 
 #include <asm/cpu.h>
 
@@ -308,7 +306,7 @@ static struct acpuclk_data acpuclk_9615_data = {
 	.wait_for_irq_khz = 19200,
 };
 
-static int __init acpuclk_9615_probe(struct platform_device *pdev)
+static int __init acpuclk_9615_init(struct acpuclk_soc_data *soc_data)
 {
 	unsigned long max_cpu_khz = 0;
 	int i;
@@ -348,15 +346,6 @@ static int __init acpuclk_9615_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver acpuclk_9615_driver = {
-	.driver = {
-		.name = "acpuclk-9615",
-		.owner = THIS_MODULE,
-	},
+struct acpuclk_soc_data acpuclk_9615_soc_data __initdata = {
+	.init = acpuclk_9615_init,
 };
-
-static int __init acpuclk_9615_init(void)
-{
-	return platform_driver_probe(&acpuclk_9615_driver, acpuclk_9615_probe);
-}
-device_initcall(acpuclk_9615_init);

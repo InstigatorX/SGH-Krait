@@ -41,11 +41,6 @@
 #include <mach/dal_axi.h>
 #include <mach/msm_memtypes.h>
 
-struct platform_device msm7x30_device_acpuclk = {
-	.name		= "acpuclk-7x30",
-	.id		= -1,
-};
-
 /* EBI THERMAL DRIVER */
 static struct resource msm_ebi0_thermal_resources[] = {
 	{

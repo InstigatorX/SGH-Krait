@@ -296,13 +296,3 @@ extern struct platform_device msm_device_csic0;
 extern struct platform_device msm_device_csic1;
 extern struct platform_device msm_device_vfe;
 extern struct platform_device msm_device_vpe;
-
-extern struct platform_device msm7x27_device_acpuclk;
-extern struct platform_device msm7x27a_device_acpuclk;
-extern struct platform_device msm7x27aa_device_acpuclk;
-extern struct platform_device msm7x30_device_acpuclk;
-extern struct platform_device msm8625_device_acpuclk;
-extern struct platform_device msm8x50_device_acpuclk;
-extern struct platform_device msm8x60_device_acpuclk;
-extern struct platform_device msm8960_device_acpuclk;
-extern struct platform_device msm9615_device_acpuclk;

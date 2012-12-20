@@ -162,11 +162,6 @@ struct platform_device msm_charm_modem = {
 	},
 };
 
-struct platform_device msm8x60_device_acpuclk = {
-	.name		= "acpuclk-8x60",
-	.id		= -1,
-};
-
 #ifdef CONFIG_MSM_DSPS
 #define GSBI12_DEV (&msm_dsps_device.dev)
 #else
