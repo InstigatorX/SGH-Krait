@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2011, 2013 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,3 +33,4 @@ void msm_pm_cpu_enter_lowpower(unsigned cpu)
 
 void msm_pm_set_max_sleep_time(int64_t max_sleep_time_ns) { }
 EXPORT_SYMBOL(msm_pm_set_max_sleep_time);
+void msm_pm_enable_retention(bool enable) {}
