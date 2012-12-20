@@ -54,7 +54,6 @@ static DEFINE_SPINLOCK(l2_lock);
 
 static struct drv_data {
 	struct acpu_level *acpu_freq_tbl;
-	const struct acpu_level *max_acpu_lvl;
 	const struct l2_level *l2_freq_tbl;
 	struct scalable *scalable;
 	u32 bus_perf_client;
@@ -484,8 +483,8 @@ static void __init hfpll_init(struct scalable *sc,
 	hfpll_enable(sc, false);
 }
 
-static void __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
-					 int vdd, bool enable)
+static void __init rpm_regulator_init(struct scalable *sc, enum vregs vreg,
+				      int vdd, bool enable)
 {
 	int ret;
 
@@ -515,56 +514,68 @@ static void __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
 }
 
 /* Voltage regulator initialization. */
-static void __cpuinit regulator_init(struct scalable *sc)
+static void __init regulator_init(struct device *dev,
+				  const struct acpu_level *lvl)
 {
-	int ret, vdd_mem, vdd_dig, vdd_core;
+	int cpu, ret;
+	struct scalable *sc;
+	int vdd_mem, vdd_dig, vdd_core;
 
-	vdd_mem = calculate_vdd_mem(drv.max_acpu_lvl);
-	vdd_dig = calculate_vdd_dig(drv.max_acpu_lvl);
+	vdd_mem = calculate_vdd_mem(lvl);
+	vdd_dig = calculate_vdd_dig(lvl);
 
-	rpm_regulator_init(sc, VREG_MEM, vdd_mem, true);
-	rpm_regulator_init(sc, VREG_DIG, vdd_dig, true);
-	rpm_regulator_init(sc, VREG_HFPLL_A,
-			   sc->vreg[VREG_HFPLL_A].max_vdd, false);
-	rpm_regulator_init(sc, VREG_HFPLL_B,
-			   sc->vreg[VREG_HFPLL_B].max_vdd, false);
+	rpm_regulator_init(&drv.scalable[L2], VREG_HFPLL_A,
+			   drv.scalable[L2].vreg[VREG_HFPLL_A].max_vdd, false);
+	rpm_regulator_init(&drv.scalable[L2], VREG_HFPLL_B,
+			   drv.scalable[L2].vreg[VREG_HFPLL_B].max_vdd, false);
 
-	/* Setup Krait CPU regulators and initial core voltage. */
-	sc->vreg[VREG_CORE].reg = regulator_get(drv.dev,
-				  sc->vreg[VREG_CORE].name);
-	if (IS_ERR(sc->vreg[VREG_CORE].reg)) {
-		dev_err(drv.dev, "regulator_get(%s) failed (%ld)\n",
-			sc->vreg[VREG_CORE].name,
-			PTR_ERR(sc->vreg[VREG_CORE].reg));
-		BUG();
-	}
-	vdd_core = calculate_vdd_core(drv.max_acpu_lvl);
-	ret = regulator_set_voltage(sc->vreg[VREG_CORE].reg, vdd_core,
-				    sc->vreg[VREG_CORE].max_vdd);
-	if (ret) {
-		dev_err(drv.dev, "regulator_set_voltage(%s) (%d)\n",
-			sc->vreg[VREG_CORE].name, ret);
-		BUG();
-	}
-	sc->vreg[VREG_CORE].cur_vdd = vdd_core;
-	ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
-					 sc->vreg[VREG_CORE].peak_ua);
-	if (ret < 0) {
-		dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
-			sc->vreg[VREG_CORE].name, ret);
-		BUG();
-	}
-	ret = regulator_enable(sc->vreg[VREG_CORE].reg);
-	if (ret) {
-		dev_err(drv.dev, "regulator_enable(%s) failed (%d)\n",
-			sc->vreg[VREG_CORE].name, ret);
-		BUG();
+	for_each_possible_cpu(cpu) {
+		sc = &drv.scalable[cpu];
+
+		rpm_regulator_init(sc, VREG_MEM, vdd_mem, true);
+		rpm_regulator_init(sc, VREG_DIG, vdd_dig, true);
+		rpm_regulator_init(sc, VREG_HFPLL_A,
+				   sc->vreg[VREG_HFPLL_A].max_vdd, false);
+		rpm_regulator_init(sc, VREG_HFPLL_B,
+				   sc->vreg[VREG_HFPLL_B].max_vdd, false);
+
+		/* Setup Krait CPU regulators and initial core voltage. */
+		sc->vreg[VREG_CORE].reg = regulator_get(dev,
+					  sc->vreg[VREG_CORE].name);
+		if (IS_ERR(sc->vreg[VREG_CORE].reg)) {
+			dev_err(drv.dev, "regulator_get(%s) failed (%ld)\n",
+				sc->vreg[VREG_CORE].name,
+				PTR_ERR(sc->vreg[VREG_CORE].reg));
+			BUG();
+		}
+		vdd_core = calculate_vdd_core(lvl);
+		ret = regulator_set_voltage(sc->vreg[VREG_CORE].reg, vdd_core,
+					    sc->vreg[VREG_CORE].max_vdd);
+		if (ret) {
+			dev_err(drv.dev, "regulator_set_voltage(%s) (%d)\n",
+				sc->vreg[VREG_CORE].name, ret);
+			BUG();
+		}
+		sc->vreg[VREG_CORE].cur_vdd = vdd_core;
+		ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
+						 sc->vreg[VREG_CORE].peak_ua);
+		if (ret < 0) {
+			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed"
+				" (%d)\n", sc->vreg[VREG_CORE].name, ret);
+			BUG();
+		}
+		ret = regulator_enable(sc->vreg[VREG_CORE].reg);
+		if (ret) {
+			dev_err(drv.dev, "regulator_enable(%s) failed (%d)\n",
+				sc->vreg[VREG_CORE].name, ret);
+			BUG();
+		}
 	}
 }
 
 /* Set initial rate for a given core. */
-static void __cpuinit init_clock_sources(struct scalable *sc,
-					 const struct core_speed *tgt_s)
+static void __init init_clock_sources(struct scalable *sc,
+				      const struct core_speed *tgt_s)
 {
 	u32 regval;
 	void __iomem *aux_reg;
@@ -593,23 +604,19 @@ static void __cpuinit init_clock_sources(struct scalable *sc,
 	sc->cur_speed = tgt_s;
 }
 
-static void __cpuinit per_cpu_init(int cpu)
+static void __init per_cpu_init(int cpu, const struct acpu_level *max_level)
 {
-	struct scalable *sc = &drv.scalable[cpu];
+	drv.scalable[cpu].hfpll_base =
+		ioremap(drv.scalable[cpu].hfpll_phys_base, SZ_32);
+	BUG_ON(!drv.scalable[cpu].hfpll_base);
 
-	sc->hfpll_base = ioremap(sc->hfpll_phys_base, SZ_32);
-	BUG_ON(!sc->hfpll_base);
-
-	regulator_init(sc);
-
-	init_clock_sources(sc, &drv.max_acpu_lvl->speed);
-	sc->l2_vote = drv.max_acpu_lvl->l2_level;
-
-	sc->initialized = true;
+	init_clock_sources(&drv.scalable[cpu], &max_level->speed);
+	drv.scalable[cpu].l2_vote = max_level->l2_level;
 }
 
 /* Register with bus driver. */
-static void __init bus_init(struct msm_bus_scale_pdata *bus_scale_data)
+static void __init bus_init(struct msm_bus_scale_pdata *bus_scale_data,
+			    unsigned int init_bw)
 {
 	int ret;
 
@@ -619,8 +626,7 @@ static void __init bus_init(struct msm_bus_scale_pdata *bus_scale_data)
 		BUG();
 	}
 
-	ret = msm_bus_scale_client_update_request(drv.bus_perf_client,
-					drv.max_acpu_lvl->l2_level->bw_level);
+	ret = msm_bus_scale_client_update_request(drv.bus_perf_client, init_bw);
 	if (ret)
 		dev_err(drv.dev, "initial bandwidth req failed (%d)\n", ret);
 }
@@ -678,10 +684,6 @@ static int __cpuinit acpuclk_cpu_callback(struct notifier_block *nfb,
 		regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg, 0);
 		break;
 	case CPU_UP_PREPARE:
-		if (!sc->initialized) {
-			per_cpu_init(cpu);
-			break;
-		}
 		if (WARN_ON(!prev_khz[cpu]))
 			return NOTIFY_BAD;
 		rc = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
@@ -720,10 +722,10 @@ static void krait_apply_vmin(struct acpu_level *tbl)
 			tbl->vdd_core = 1150000;
 }
 
-static void __init select_freq_plan(struct acpu_level *const *pvs_tbl,
-				    u32 qfprom_phys)
+static const struct acpu_level __init *select_freq_plan(
+		struct acpu_level *const *pvs_tbl, u32 qfprom_phys)
 {
-	const struct acpu_level *l;
+	const struct acpu_level *l, *max_acpu_level = NULL;
 	void __iomem *qfprom_base;
 	u32 pte_efuse, pvs, tbl_idx;
 	char *pvs_names[] = { "Slow", "Nominal", "Fast", "Unknown" };
@@ -770,10 +772,12 @@ static void __init select_freq_plan(struct acpu_level *const *pvs_tbl,
 	/* Find the max supported scaling frequency. */
 	for (l = drv.acpu_freq_tbl; l->speed.khz != 0; l++)
 		if (l->use_for_scaling)
-			drv.max_acpu_lvl = l;
-	BUG_ON(!drv.max_acpu_lvl);
+			max_acpu_level = l;
+	BUG_ON(!max_acpu_level);
 	dev_info(drv.dev, "Max ACPU freq: %lu KHz\n",
-		 drv.max_acpu_lvl->speed.khz);
+		 max_acpu_level->speed.khz);
+
+	return max_acpu_level;
 }
 
 static struct acpuclk_data acpuclk_krait_data = {
@@ -786,27 +790,24 @@ static struct acpuclk_data acpuclk_krait_data = {
 int __init acpuclk_krait_init(struct device *dev,
 			      const struct acpuclk_krait_params *params)
 {
-	struct scalable *l2;
+	const struct acpu_level *max_acpu_level;
 	int cpu;
 
 	drv.scalable = params->scalable;
 	drv.l2_freq_tbl = params->l2_freq_tbl;
 	drv.dev = dev;
 
-	select_freq_plan(params->pvs_acpu_freq_tbl, params->qfprom_phys_base);
-	bus_init(params->bus_scale_data);
+	drv.scalable[L2].hfpll_base =
+		ioremap(drv.scalable[L2].hfpll_phys_base, SZ_32);
+	BUG_ON(!drv.scalable[L2].hfpll_base);
 
-	l2 = &drv.scalable[L2];
-	l2->hfpll_base = ioremap(l2->hfpll_phys_base, SZ_32);
-	BUG_ON(!l2->hfpll_base);
-	rpm_regulator_init(l2, VREG_HFPLL_A, l2->vreg[VREG_HFPLL_A].max_vdd,
-			  false);
-	rpm_regulator_init(l2, VREG_HFPLL_B, l2->vreg[VREG_HFPLL_B].max_vdd,
-			  false);
-	init_clock_sources(l2, &drv.max_acpu_lvl->l2_level->speed);
-
+	max_acpu_level = select_freq_plan(params->pvs_acpu_freq_tbl,
+					  params->qfprom_phys_base);
+	regulator_init(dev, max_acpu_level);
+	bus_init(params->bus_scale_data, max_acpu_level->l2_level->bw_level);
+	init_clock_sources(&drv.scalable[L2], &max_acpu_level->l2_level->speed);
 	for_each_online_cpu(cpu)
-		per_cpu_init(cpu);
+		per_cpu_init(cpu, max_acpu_level);
 
 	cpufreq_table_init();
 
