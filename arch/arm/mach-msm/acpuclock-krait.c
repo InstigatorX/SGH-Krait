@@ -94,18 +94,18 @@ static void set_sec_clk_src(struct scalable *sc, u32 sec_src_sel)
 	udelay(1);
 }
 
-static int enable_rpm_vreg(struct vreg *vreg)
+static void enable_rpm_vreg(struct vreg *vreg)
 {
-	int ret = 0;
+	int rc;
 
 	if (vreg->rpm_reg) {
-		ret = rpm_regulator_enable(vreg->rpm_reg);
-		if (ret)
+		rc = rpm_regulator_enable(vreg->rpm_reg);
+		if (rc) {
 			dev_err(drv.dev, "%s regulator enable failed (%d)\n",
-				vreg->name, ret);
+				vreg->name, rc);
+			BUG();
+		}
 	}
-
-	return ret;
 }
 
 static void disable_rpm_vreg(struct vreg *vreg)
@@ -484,21 +484,21 @@ static void __init hfpll_init(struct scalable *sc,
 	hfpll_enable(sc, false);
 }
 
-static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
+static void __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
 					 int vdd, bool enable)
 {
 	int ret;
 
 	if (!sc->vreg[vreg].name)
-		return 0;
+		return;
 
 	sc->vreg[vreg].rpm_reg = rpm_regulator_get(drv.dev,
 						   sc->vreg[vreg].name);
 	if (IS_ERR(sc->vreg[vreg].rpm_reg)) {
-		ret = PTR_ERR(sc->vreg[vreg].rpm_reg);
-		dev_err(drv.dev, "rpm_regulator_get(%s) failed (%d)\n",
-			sc->vreg[vreg].name, ret);
-		goto err_get;
+		dev_err(drv.dev, "rpm_regulator_get(%s) failed (%ld)\n",
+			sc->vreg[vreg].name,
+			PTR_ERR(sc->vreg[vreg].rpm_reg));
+		BUG();
 	}
 
 	ret = rpm_regulator_set_voltage(sc->vreg[vreg].rpm_reg, vdd,
@@ -506,65 +506,37 @@ static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
 	if (ret) {
 		dev_err(drv.dev, "%s initialization failed (%d)\n",
 			sc->vreg[vreg].name, ret);
-		goto err_conf;
+		BUG();
 	}
 	sc->vreg[vreg].cur_vdd = vdd;
 
-	if (enable) {
-		ret = enable_rpm_vreg(&sc->vreg[vreg]);
-		if (ret)
-			goto err_conf;
-	}
-
-	return 0;
-
-err_conf:
-	rpm_regulator_put(sc->vreg[vreg].rpm_reg);
-err_get:
-	return ret;
-}
-
-static void __cpuinit rpm_regulator_cleanup(struct scalable *sc,
-						enum vregs vreg)
-{
-	if (!sc->vreg[vreg].rpm_reg)
-		return;
-
-	disable_rpm_vreg(&sc->vreg[vreg]);
-	rpm_regulator_put(sc->vreg[vreg].rpm_reg);
+	if (enable)
+		enable_rpm_vreg(&sc->vreg[vreg]);
 }
 
 /* Voltage regulator initialization. */
-static int __cpuinit regulator_init(struct scalable *sc)
+static void __cpuinit regulator_init(struct scalable *sc)
 {
 	int ret, vdd_mem, vdd_dig, vdd_core;
 
 	vdd_mem = calculate_vdd_mem(drv.max_acpu_lvl);
 	vdd_dig = calculate_vdd_dig(drv.max_acpu_lvl);
 
-	ret = rpm_regulator_init(sc, VREG_MEM, vdd_mem, true);
-	if (ret)
-		goto err_mem;
-	ret = rpm_regulator_init(sc, VREG_DIG, vdd_dig, true);
-	if (ret)
-		goto err_dig;
-	ret = rpm_regulator_init(sc, VREG_HFPLL_A,
+	rpm_regulator_init(sc, VREG_MEM, vdd_mem, true);
+	rpm_regulator_init(sc, VREG_DIG, vdd_dig, true);
+	rpm_regulator_init(sc, VREG_HFPLL_A,
 			   sc->vreg[VREG_HFPLL_A].max_vdd, false);
-	if (ret)
-		goto err_hfpll_a;
-	ret = rpm_regulator_init(sc, VREG_HFPLL_B,
+	rpm_regulator_init(sc, VREG_HFPLL_B,
 			   sc->vreg[VREG_HFPLL_B].max_vdd, false);
-	if (ret)
-		goto err_hfpll_b;
 
 	/* Setup Krait CPU regulators and initial core voltage. */
 	sc->vreg[VREG_CORE].reg = regulator_get(drv.dev,
 				  sc->vreg[VREG_CORE].name);
 	if (IS_ERR(sc->vreg[VREG_CORE].reg)) {
-		ret = PTR_ERR(sc->vreg[VREG_CORE].reg);
-		dev_err(drv.dev, "regulator_get(%s) failed (%d)\n",
-			sc->vreg[VREG_CORE].name, ret);
-		goto err_core_get;
+		dev_err(drv.dev, "regulator_get(%s) failed (%ld)\n",
+			sc->vreg[VREG_CORE].name,
+			PTR_ERR(sc->vreg[VREG_CORE].reg));
+		BUG();
 	}
 	vdd_core = calculate_vdd_core(drv.max_acpu_lvl);
 	ret = regulator_set_voltage(sc->vreg[VREG_CORE].reg, vdd_core,
@@ -572,7 +544,7 @@ static int __cpuinit regulator_init(struct scalable *sc)
 	if (ret) {
 		dev_err(drv.dev, "regulator_set_voltage(%s) (%d)\n",
 			sc->vreg[VREG_CORE].name, ret);
-		goto err_core_conf;
+		BUG();
 	}
 	sc->vreg[VREG_CORE].cur_vdd = vdd_core;
 	ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
@@ -580,43 +552,18 @@ static int __cpuinit regulator_init(struct scalable *sc)
 	if (ret < 0) {
 		dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
 			sc->vreg[VREG_CORE].name, ret);
-		goto err_core_conf;
+		BUG();
 	}
 	ret = regulator_enable(sc->vreg[VREG_CORE].reg);
 	if (ret) {
 		dev_err(drv.dev, "regulator_enable(%s) failed (%d)\n",
 			sc->vreg[VREG_CORE].name, ret);
-		goto err_core_conf;
+		BUG();
 	}
-
-	return 0;
-
-err_core_conf:
-	regulator_put(sc->vreg[VREG_CORE].reg);
-err_core_get:
-	rpm_regulator_cleanup(sc, VREG_HFPLL_B);
-err_hfpll_b:
-	rpm_regulator_cleanup(sc, VREG_HFPLL_A);
-err_hfpll_a:
-	rpm_regulator_cleanup(sc, VREG_DIG);
-err_dig:
-	rpm_regulator_cleanup(sc, VREG_MEM);
-err_mem:
-	return ret;
-}
-
-static void __cpuinit regulator_cleanup(struct scalable *sc)
-{
-	regulator_disable(sc->vreg[VREG_CORE].reg);
-	regulator_put(sc->vreg[VREG_CORE].reg);
-	rpm_regulator_cleanup(sc, VREG_HFPLL_B);
-	rpm_regulator_cleanup(sc, VREG_HFPLL_A);
-	rpm_regulator_cleanup(sc, VREG_DIG);
-	rpm_regulator_cleanup(sc, VREG_MEM);
 }
 
 /* Set initial rate for a given core. */
-static int __cpuinit init_clock_sources(struct scalable *sc,
+static void __cpuinit init_clock_sources(struct scalable *sc,
 					 const struct core_speed *tgt_s)
 {
 	u32 regval;
@@ -625,8 +572,7 @@ static int __cpuinit init_clock_sources(struct scalable *sc,
 	/* Program AUX source input to the secondary MUX. */
 	if (sc->aux_clk_sel_phys) {
 		aux_reg = ioremap(sc->aux_clk_sel_phys, 4);
-		if (!aux_reg)
-			return -ENOMEM;
+		BUG_ON(!aux_reg);
 		writel_relaxed(sc->aux_clk_sel, aux_reg);
 		iounmap(aux_reg);
 	}
@@ -645,39 +591,21 @@ static int __cpuinit init_clock_sources(struct scalable *sc,
 	set_sec_clk_src(sc, tgt_s->sec_src_sel);
 	set_pri_clk_src(sc, tgt_s->pri_src_sel);
 	sc->cur_speed = tgt_s;
-
-	return 0;
 }
 
-static int __cpuinit per_cpu_init(int cpu)
+static void __cpuinit per_cpu_init(int cpu)
 {
 	struct scalable *sc = &drv.scalable[cpu];
-	int ret;
 
 	sc->hfpll_base = ioremap(sc->hfpll_phys_base, SZ_32);
-	if (!sc->hfpll_base) {
-		ret = -ENOMEM;
-		goto err_ioremap;
-	}
+	BUG_ON(!sc->hfpll_base);
 
-	ret = regulator_init(sc);
-	if (ret)
-		goto err_regulators;
+	regulator_init(sc);
 
-	ret = init_clock_sources(sc, &drv.max_acpu_lvl->speed);
-	if (ret)
-		goto err_clocks;
+	init_clock_sources(sc, &drv.max_acpu_lvl->speed);
 	sc->l2_vote = drv.max_acpu_lvl->l2_level;
+
 	sc->initialized = true;
-
-	return 0;
-
-err_clocks:
-	regulator_cleanup(sc);
-err_regulators:
-	iounmap(sc->hfpll_base);
-err_ioremap:
-	return ret;
 }
 
 /* Register with bus driver. */
@@ -751,9 +679,7 @@ static int __cpuinit acpuclk_cpu_callback(struct notifier_block *nfb,
 		break;
 	case CPU_UP_PREPARE:
 		if (!sc->initialized) {
-			rc = per_cpu_init(cpu);
-			if (rc)
-				return NOTIFY_BAD;
+			per_cpu_init(cpu);
 			break;
 		}
 		if (WARN_ON(!prev_khz[cpu]))
@@ -861,7 +787,7 @@ int __init acpuclk_krait_init(struct device *dev,
 			      const struct acpuclk_krait_params *params)
 {
 	struct scalable *l2;
-	int cpu, rc;
+	int cpu;
 
 	drv.scalable = params->scalable;
 	drv.l2_freq_tbl = params->l2_freq_tbl;
@@ -873,21 +799,14 @@ int __init acpuclk_krait_init(struct device *dev,
 	l2 = &drv.scalable[L2];
 	l2->hfpll_base = ioremap(l2->hfpll_phys_base, SZ_32);
 	BUG_ON(!l2->hfpll_base);
+	rpm_regulator_init(l2, VREG_HFPLL_A, l2->vreg[VREG_HFPLL_A].max_vdd,
+			  false);
+	rpm_regulator_init(l2, VREG_HFPLL_B, l2->vreg[VREG_HFPLL_B].max_vdd,
+			  false);
+	init_clock_sources(l2, &drv.max_acpu_lvl->l2_level->speed);
 
-	rc = rpm_regulator_init(l2, VREG_HFPLL_A,
-				l2->vreg[VREG_HFPLL_A].max_vdd, false);
-	BUG_ON(rc);
-	rc = rpm_regulator_init(l2, VREG_HFPLL_B,
-				l2->vreg[VREG_HFPLL_B].max_vdd, false);
-	BUG_ON(rc);
-
-	rc = init_clock_sources(l2, &drv.max_acpu_lvl->l2_level->speed);
-	BUG_ON(rc);
-
-	for_each_online_cpu(cpu) {
-		rc = per_cpu_init(cpu);
-		BUG_ON(rc);
-	}
+	for_each_online_cpu(cpu)
+		per_cpu_init(cpu);
 
 	cpufreq_table_init();
 
