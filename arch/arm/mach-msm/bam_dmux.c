@@ -48,7 +48,7 @@
 #define BAM_MUX_HDR_CMD_OPEN_NO_A2_PC	4
 
 #define POLLING_MIN_SLEEP	950	/* 0.95 ms */
-#define POLLING_MAX_SLEEP	1050	/* 1.05 ms */
+#define POLLING_MAX_SLEEP	6050	/* 6.05 ms */
 #define POLLING_INACTIVITY	40	/* cycles before switch to intr mode */
 
 #define LOW_WATERMARK		2
