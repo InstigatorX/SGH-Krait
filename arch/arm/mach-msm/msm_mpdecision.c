@@ -80,7 +80,7 @@ static struct msm_mpdec_tuners {
         .min_cpus = 1,
 };
 
-static unsigned int NwNs_Threshold[8] = {19, 10, 28, 30, 32, 30, 0, 35};
+static unsigned int NwNs_Threshold[8] = {12, 0, 25, 20, 32, 28, 0, 35};
 static unsigned int TwTs_Threshold[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 
 extern unsigned int get_rq_info(void);
@@ -312,9 +312,21 @@ static void msm_mpdec_late_resume(struct early_suspend *h)
 	for_each_possible_cpu(cpu)
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
 
+	mutex_lock(&per_cpu(msm_mpdec_cpudata, 1).suspend_mutex);
+	if (!cpu_online(1)) {
+		/* Always enable cpu1 when screen comes online.
+		 * This boosts the wakeup process. */
+		cpu_up(1);
+		per_cpu(msm_mpdec_cpudata, 1).on_time = ktime_to_ms(ktime_get());
+		per_cpu(msm_mpdec_cpudata, 1).online = true;
+		pr_info(MPDEC_TAG"Screen -> on. Hot plugged CPU1 | Mask=[%d%d%d%d]\n",
+                        cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+	}
+	mutex_unlock(&per_cpu(msm_mpdec_cpudata, 1).suspend_mutex);
+
         /* wake up main work thread */
-        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
-                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+        was_paused = true;
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work, 0);
 
         pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
 		cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
