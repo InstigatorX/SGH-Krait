@@ -177,10 +177,14 @@
 #endif
 
 #ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
-int set_two_phase_freq_badass(int cpufreq);
+	int set_two_phase_freq_badass(int cpufreq);
+	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+		int set_three_phase_freq_badass(int cpufreq);
+	#endif
 #endif
-#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
-int set_three_phase_freq_badass(int cpufreq);
+
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+	int set_two_phase_freq(int cpufreq);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_MMS144
@@ -5220,12 +5224,16 @@ static void __init samsung_m2_att_init(void)
 	acpuclk_init(&acpuclk_8960_soc_data);
 	
 	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
-	set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
-	#endif
-	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
-	set_three_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE_FREQ);
+		set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
+		#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+			set_three_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE_FREQ);
+		#endif
 	#endif
 	
+	#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+        set_two_phase_freq(CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE_FREQ);
+	#endif
+
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
 	samsung_sys_class_init();
