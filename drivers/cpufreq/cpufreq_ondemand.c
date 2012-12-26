@@ -150,7 +150,7 @@ static struct dbs_tuners {
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 	.two_phase_freq = 0,
 #endif
-	.touch_poke = 1,
+	.touch_poke = 0,
 	.ui_sampling_rate = DEF_UI_DYNAMIC_SAMPLING_RATE,
 	.ui_counter = DEF_UI_COUNTER,
 };
