@@ -13,6 +13,7 @@ cp drivers/crypto/msm/qce40.ko build_dir/system/lib/modules
 cp drivers/crypto/msm/qcedev.ko build_dir/system/lib/modules
 cp drivers/crypto/msm/qcrypto.ko build_dir/system/lib/modules
 cp drivers/input/evbug.ko build_dir/system/lib/modules
+cp drivers/interceptor/vpnclient.ko build_dir/system/lib/modules
 cp drivers/media/video/gspca/gspca_main.ko build_dir/system/lib/modules
 cp drivers/net/wireless/bcmdhd/dhd.ko build_dir/system/lib/modules
 cp drivers/net/wireless/btlock/btlock.ko build_dir/system/lib/modules
