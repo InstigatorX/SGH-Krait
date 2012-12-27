@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1392,6 +1392,11 @@ static int get_prop_batt_capacity(struct pm8921_chg_chip *chip)
 }
 
 #define AVG_CNT 15
+static int get_prop_batt_current_max(struct pm8921_chg_chip *chip)
+{
+	return pm8921_bms_get_current_max();
+}
+
 static int get_prop_batt_current(struct pm8921_chg_chip *chip)
 {
 	int result_ua, rc;
