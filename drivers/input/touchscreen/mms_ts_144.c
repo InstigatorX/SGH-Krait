@@ -177,6 +177,8 @@ enum {
 #define ISC_CHAR_2_BCD(num)	(((num/10)<<4) + (num%10))
 #define ISC_MAX(x, y)		(((x) > (y)) ? (x) : (y))
 
+void hotplug_boostpulse(void);
+
 static const char section_name[SECTION_NUM][SECTION_NAME_LEN] = {
 	"BOOT", "CORE", "PRIV", "PUBL"
 };
@@ -707,6 +709,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	}
 
 	input_sync(info->input_dev);
+	hotplug_boostpulse();
 	touch_is_pressed = 0;
 
 	for (i = 0; i < MAX_FINGERS; i++) {
