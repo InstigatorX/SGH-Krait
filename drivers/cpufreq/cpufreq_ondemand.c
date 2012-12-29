@@ -44,6 +44,8 @@
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
 #define DEFAULT_FREQ_BOOST_TIME			(500000)
 #define MAX_FREQ_BOOST_TIME				(5000000)
+#define DBS_SYNC_FREQ				(702000)
+#define DBS_OPTIMAL_FREQ			(1296000)
 
 u64 freq_boosted_time;
 
@@ -164,8 +166,8 @@ static struct dbs_tuners {
 	.powersave_bias = 0,
 	.freq_boost_time = DEFAULT_FREQ_BOOST_TIME,
 	.boostfreq = MAX_FREQ_LIMIT,
-	.sync_freq = 0,
-	.optimal_freq = 0,
+	.sync_freq = DBS_SYNC_FREQ,
+	.optimal_freq = DBS_OPTIMAL_FREQ,
 	.sampling_rate = (MICRO_FREQUENCY_MIN_SAMPLE_RATE * 5)
 };
 
