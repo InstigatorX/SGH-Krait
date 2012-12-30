@@ -416,7 +416,13 @@ static struct early_suspend msm_cpu_early_suspend_handler = {
 	.resume = msm_cpu_late_resume,
 };
 
-static int msm_cpufreq_suspend(void)
+/*
+ * Define suspend/resume for cpufreq_driver. Kernel will call
+ * these during suspend/resume with interrupts disabled. This
+ * helps the suspend/resume variable get's updated before cpufreq
+ * governor tries to change the frequency after coming out of suspend.
+ */
+static int msm_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	int cpu;
 
@@ -497,7 +503,6 @@ static int __init msm_cpufreq_register(void)
 	register_hotcpu_notifier(&msm_cpufreq_cpu_notifier);
 #endif
 
-	register_pm_notifier(&msm_cpufreq_pm_notifier);
 	register_early_suspend(&msm_cpu_early_suspend_handler);
 	return cpufreq_register_driver(&msm_cpufreq_driver);
 }
