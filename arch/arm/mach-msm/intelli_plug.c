@@ -58,7 +58,7 @@ static unsigned int nr_run_last;
 
 static unsigned int calculate_thread_stats(void)
 {
-	unsigned int avg_nr_run = avg_nr_running();
+	unsigned int avg_nr_run = nr_running();
 	unsigned int nr_run;
 	unsigned int threshold_size;
 
