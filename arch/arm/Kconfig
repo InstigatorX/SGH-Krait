@@ -36,9 +36,6 @@ config ARM
 	  manufactured, but legacy ARM-based PC hardware remains popular in
 	  Europe.  There is an ARM Linux project with a web page at
 	  <http://www.arm.linux.org.uk/>.
-config AUTO_HOTPLUG
-	bool
-	default N
 
 config HAVE_PWM
 	bool
@@ -1091,7 +1088,7 @@ config MULTI_IRQ_HANDLER
 if !MMU
 source "arch/arm/Kconfig-nommu"
 endif
-
+	
 config ARM_ERRATA_411920
 	bool "ARM errata: Invalidation of the Instruction Cache operation can fail"
 	depends on CPU_V6 || CPU_V6K
