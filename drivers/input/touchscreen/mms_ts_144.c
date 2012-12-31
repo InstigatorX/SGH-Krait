@@ -177,7 +177,9 @@ enum {
 #define ISC_CHAR_2_BCD(num)	(((num/10)<<4) + (num%10))
 #define ISC_MAX(x, y)		(((x) > (y)) ? (x) : (y))
 
-void hotplug_boostpulse(void);
+#if defined(CONFIG_AUTO_HOTPLUG) 
+	void hotplug_boostpulse(void);
+#endif
 
 static const char section_name[SECTION_NUM][SECTION_NAME_LEN] = {
 	"BOOT", "CORE", "PRIV", "PUBL"
@@ -631,7 +633,12 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 		mms_set_noise_mode(info);
 		goto out;
 	}
-
+	
+	#if defined(CONFIG_AUTO_HOTPLUG)
+		hotplug_boostpulse();
+		//dev_dbg(&client->dev, "[TSP] Hotplug boostpulse\n");
+	#endif
+	
 	for (i = 0; i < sz; i += FINGER_EVENT_SZ) {
 		u8 *tmp = &buf[i];
 		int id = (tmp[0] & 0xf) - 1;
@@ -709,7 +716,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	}
 
 	input_sync(info->input_dev);
-	hotplug_boostpulse();
 	touch_is_pressed = 0;
 
 	for (i = 0; i < MAX_FINGERS; i++) {
