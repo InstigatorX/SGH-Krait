@@ -166,6 +166,7 @@ static struct dbs_tuners {
 	.boostfreq = MAX_FREQ_LIMIT,
 	.sync_freq = 0,
 	.optimal_freq = 0,
+	.sampling_rate = (MICRO_FREQUENCY_MIN_SAMPLE_RATE * 5)
 };
 
 static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
