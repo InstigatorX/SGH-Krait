@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/msm_tsens.h>
 #include <linux/io.h>
+#include <linux/pm.h>
 
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
@@ -113,6 +114,10 @@ enum tsens_trip_type {
 #define TSENS_8660_CONFIG_MASK			(3 << TSENS_8660_CONFIG_SHIFT)
 #define TSENS_8660_SLP_CLK_ENA				BIT(24)
 
+#define TSENS_CNTL_RESUME_MASK        0xfffffff9
+#define TSENS_8960_SENSOR_MASK        0xf8
+#define TSENS_8064_SENSOR_MASK        0x3ff8
+
 struct tsens_tm_device_sensor {
 	struct thermal_zone_device	*tz_dev;
 	enum thermal_device_mode	mode;
@@ -129,6 +134,8 @@ struct tsens_tm_device {
 	int				tsens_factor;
 	uint32_t			tsens_num_sensor;
 	enum platform_type		hw_type;
+	int        pm_tsens_thr_data;
+	int        pm_tsens_cntl;
 	struct tsens_tm_device_sensor	sensor[0];
 };
 
@@ -236,9 +243,6 @@ static int tsens_tz_set_mode(struct thermal_zone_device *thermal,
 		return -EINVAL;
 
 	if (mode != tm_sensor->mode) {
-		pr_info("%s: mode: %d --> %d\n", __func__, tm_sensor->mode,
-									 mode);
-
 		reg = readl_relaxed(TSENS_CNTL_ADDR);
 
 		mask = 1 << (tm_sensor->sensor_num + TSENS_SENSOR0_SHIFT);
@@ -610,6 +614,70 @@ static void tsens8960_sensor_mode_init(void)
 	}
 }
 
+#ifdef CONFIG_PM
+static int tsens_suspend(struct device *dev)
+{
+	int i = 0;
+
+	tmdev->pm_tsens_thr_data = readl_relaxed(TSENS_THRESHOLD_ADDR);
+	tmdev->pm_tsens_cntl = readl_relaxed(TSENS_CNTL_ADDR);
+	writel_relaxed(tmdev->pm_tsens_cntl &
+		~(TSENS_8960_SLP_CLK_ENA | TSENS_EN), TSENS_CNTL_ADDR);
+	tmdev->prev_reading_avail = 0;
+	for (i = 0; i < tmdev->tsens_num_sensor; i++)
+		tmdev->sensor[i].mode = THERMAL_DEVICE_DISABLED;
+	disable_irq_nosync(TSENS_UPPER_LOWER_INT);
+	mb();
+	return 0;
+}
+
+static int tsens_resume(struct device *dev)
+{
+	unsigned int reg_cntl = 0, reg_cfg = 0, reg_sensor_mask = 0;
+	unsigned int reg_thr_data = 0, i = 0;
+
+	reg_cntl = readl_relaxed(TSENS_CNTL_ADDR);
+	writel_relaxed(reg_cntl | TSENS_SW_RST, TSENS_CNTL_ADDR);
+
+	if (tmdev->hw_type == MSM_8960) {
+		reg_cntl |= TSENS_8960_SLP_CLK_ENA |
+			(TSENS_MEASURE_PERIOD << 18) |
+			TSENS_MIN_STATUS_MASK | TSENS_MAX_STATUS_MASK |
+			SENSORS_EN;
+		writel_relaxed(reg_cntl, TSENS_CNTL_ADDR);
+	}
+
+	reg_cfg = readl_relaxed(TSENS_8960_CONFIG_ADDR);
+	reg_cfg = (reg_cfg & ~TSENS_8960_CONFIG_MASK) |
+		(TSENS_8960_CONFIG << TSENS_8960_CONFIG_SHIFT);
+	writel_relaxed(reg_cfg, TSENS_8960_CONFIG_ADDR);
+
+	writel_relaxed((tmdev->pm_tsens_cntl & TSENS_CNTL_RESUME_MASK),
+						TSENS_CNTL_ADDR);
+	reg_cntl = readl_relaxed(TSENS_CNTL_ADDR);
+	writel_relaxed(tmdev->pm_tsens_thr_data, TSENS_THRESHOLD_ADDR);
+	reg_thr_data = readl_relaxed(TSENS_THRESHOLD_ADDR);
+	if (tmdev->hw_type == MSM_8960)
+		reg_sensor_mask = ((reg_cntl & TSENS_8960_SENSOR_MASK)
+				>> TSENS_SENSOR0_SHIFT);
+	
+	for (i = 0; i < tmdev->tsens_num_sensor; i++) {
+		if (reg_sensor_mask & TSENS_MASK1)
+			tmdev->sensor[i].mode = THERMAL_DEVICE_ENABLED;
+		reg_sensor_mask >>= 1;
+	}
+
+	enable_irq(TSENS_UPPER_LOWER_INT);
+	mb();
+	return 0;
+}
+
+static const struct dev_pm_ops tsens_pm_ops = {
+	.suspend	= tsens_suspend,
+	.resume		= tsens_resume,
+};
+#endif
+
 static void tsens_disable_mode(void)
 {
 	unsigned int reg_cntl = 0;
@@ -639,8 +707,7 @@ static void tsens_hw_init(void)
 			(TSENS_MEASURE_PERIOD << 18) |
 			TSENS_LOWER_STATUS_CLR | TSENS_UPPER_STATUS_CLR |
 			TSENS_MIN_STATUS_MASK | TSENS_MAX_STATUS_MASK |
-			(((1 << tmdev->tsens_num_sensor) - 1) <<
-			TSENS_SENSOR0_SHIFT);
+			SENSORS_EN;
 		writel_relaxed(reg_cntl, TSENS_CNTL_ADDR);
 		reg_cntl |= TSENS_EN;
 		writel_relaxed(reg_cntl, TSENS_CNTL_ADDR);
@@ -815,7 +882,7 @@ int msm_tsens_early_init(struct tsens_platform_data *pdata)
 	return rc;
 }
 
-static int __init tsens_tm_init(void)
+static int __devinit tsens_tm_probe(struct platform_device *pdev)
 {
 	int rc, i, j;
 
@@ -864,7 +931,7 @@ fail:
 	return rc;
 }
 
-static void __exit tsens_tm_remove(void)
+static int __devexit tsens_tm_remove(struct platform_device *pdev)
 {
 	int i;
 
@@ -875,10 +942,32 @@ static void __exit tsens_tm_remove(void)
 		thermal_zone_device_unregister(tmdev->sensor[i].tz_dev);
 	kfree(tmdev);
 	tmdev = NULL;
+	return 0;
 }
 
-module_init(tsens_tm_init);
-module_exit(tsens_tm_remove);
+static struct platform_driver tsens_tm_driver = {
+	.probe = tsens_tm_probe,
+	.remove = tsens_tm_remove,
+	.driver = {
+		.name = "tsens8960-tm",
+		.owner = THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm	= &tsens_pm_ops,
+#endif
+	},
+};
+
+static int __init _tsens_tm_init(void)
+{
+	return platform_driver_register(&tsens_tm_driver);
+}
+module_init(_tsens_tm_init);
+
+static void __exit _tsens_tm_remove(void)
+{
+	platform_driver_unregister(&tsens_tm_driver);
+}
+module_exit(_tsens_tm_remove);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("MSM8960 Temperature Sensor driver");
