@@ -42,6 +42,7 @@
 #include <linux/i2c/isa1200.h>
 #include <linux/memory.h>
 #include <linux/memblock.h>
+#include <linux/msm_thermal.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -3963,6 +3964,14 @@ static struct tsens_platform_data msm_tsens_pdata  = {
 		.tsens_num_sensor	= 5,
 };
 
+static struct msm_thermal_data msm_thermal_pdata = {
+	.sensor_id = 0,
+	.poll_ms = 500,
+	.limit_temp_degC = 60,
+	.temp_hysteresis_degC = 5,
+	.freq_step = 2,
+};
+
 /* Bluetooth */
 #ifdef CONFIG_BT_BCM4334
 static struct platform_device bcm4334_bluetooth_device = {
@@ -5158,6 +5167,7 @@ static void __init samsung_m2_att_init(void)
 		pr_err("meminfo_init() failed!\n");
 
 	msm_tsens_early_init(&msm_tsens_pdata);
+	msm_thermal_init(&msm_thermal_pdata);
 	BUG_ON(msm_rpm_init(&msm_rpm_data));
 	BUG_ON(msm_rpmrs_levels_init(msm_rpmrs_levels,
 		ARRAY_SIZE(msm_rpmrs_levels)));
