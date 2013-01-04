@@ -649,10 +649,10 @@ service DR-daemon /system/bin/ddexe
     user root
     group system radio inet net_raw
 
-service KIES-daemon /system/bin/kiesexe
-    class main
-    user root
-    group system radio inet net_raw
+#service KIES-daemon /system/bin/kiesexe
+#    class main
+#    user root
+#    group system radio inet net_raw
 
 service SMD-daemon /system/bin/smdexe
     class main
@@ -687,7 +687,7 @@ service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-sys
     onrestart write /sys/power/state on
     onrestart restart media
     onrestart restart netd
-    onrestart restart gsiff_daemon
+#    onrestart restart gsiff_daemon
 
 service drm /system/bin/drmserver
     class main
