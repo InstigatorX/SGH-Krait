@@ -1,10 +1,9 @@
 ui_print("");
 ui_print("Welcome to");
 ui_print("InstigatorX Kernel");
-ui_print("For CM9/AOKP");
+ui_print("For SGS3 Touchwiz");
 ui_print("");
 ui_print("Install script");
-ui_print("Courtesy of h0tw1r3");
 ui_print("");
 
 show_progress(1.300000, 4);
