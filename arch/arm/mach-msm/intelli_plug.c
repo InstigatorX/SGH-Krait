@@ -128,7 +128,11 @@ static void intelli_plug_late_resume(struct early_suspend *handler)
 	mutex_lock(&intelli_plug_mutex);
 	suspended = false;
 	mutex_unlock(&intelli_plug_mutex);
-
+	
+	persist_count = 8;
+	if (num_online_cpus() == 1)
+						cpu_up(1);
+	
 	schedule_delayed_work_on(0, &intelli_plug_work, msecs_to_jiffies(10));
 }
 
