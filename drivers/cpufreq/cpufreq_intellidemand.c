@@ -1340,7 +1340,7 @@ static void do_dbs_timer(struct work_struct *work)
 		{
 			if (lmf_old_state == true)
 			{
-				pr_warn("LMF: disabled!\n");
+				//pr_warn("LMF: disabled!\n");
 				lmf_old_state = false;
 			}
 
@@ -1389,7 +1389,7 @@ static void do_dbs_timer(struct work_struct *work)
 		{
 			if (lmf_old_state == false)
 			{
-				pr_warn("LMF: enabled!\n");
+				//pr_warn("LMF: enabled!\n");
 				lmf_old_state = true;
 			}
 
