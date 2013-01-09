@@ -862,7 +862,6 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_nom[] = {
 #ifdef CONFIG_CPU_ULTIMATE
 	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(19), 1275000 },
 	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(19), 1325000 },
-	{ 1, {  1890000, HFPLL, 1, 0, 0x46 }, L2(19), 1350000 },
 #endif
 #endif
 	{ 0, { 0 } }
@@ -1789,8 +1788,8 @@ static const int krait_needs_vmin(void)
 static void kraitv2_apply_vmin(struct acpu_level *tbl)
 {
 	for (; tbl->speed.khz != 0; tbl++)
-		if (tbl->vdd_core < 1075000)
-			tbl->vdd_core = 1075000;
+		if (tbl->vdd_core < 1100000)
+			tbl->vdd_core = 1100000;
 }
 
 #ifdef CONFIG_SEC_L1_DCACHE_PANIC_CHK
@@ -1836,17 +1835,21 @@ static struct acpu_level * __init select_freq_plan(void)
 		fmax = (pte_efuse >> 20) & 0x3;
 		pvs_leakage = (pte_efuse >> 16) & 0x3;
 
+		pr_info("iX: efuse: %d\n", pte_efuse);
+		pr_info("iX: fmax: %d\n", fmax);
+		pr_info("iX: leakage: %d\n", pvs_leakage);
+
 		pr_alert("ACPU PVS:[%d],FMAX[%d]\n", pvs, fmax);
 		switch (pvs) {
 			case 0x0:
 			case 0x7:
-				pr_alert("ACPU PVS: Slow(L%d)\n",
+				pr_info("ACPU PVS: Slow(L%d)\n",
 					pvs_leakage);
 				v1 = acpu_freq_tbl_8960_kraitv1_slow;
 				v2 = acpu_freq_tbl_8960_kraitv2_slow;
 				break;
 			case 0x1:
-				pr_alert("ACPU PVS: Nominal(L%d)\n",
+				pr_info("ACPU PVS: Nominal(L%d)\n",
 					pvs_leakage);
 				v1 = acpu_freq_tbl_8960_kraitv1_nom_fast;
 				v2 = acpu_freq_tbl_8960_kraitv2_nom;
@@ -1854,22 +1857,22 @@ static struct acpu_level * __init select_freq_plan(void)
 			case 0x3:
 				switch (fmax) {
 					case 0x1:
-						pr_alert("ACPU PVS: Fast1(L%d)\n",
+						pr_info("ACPU PVS: Fast1(L%d)\n",
 							pvs_leakage);
 						v1 = acpu_freq_tbl_8960_kraitv1_slow;
 						v2 = acpu_freq_tbl_8960_kraitv2_fast;
 						break;
 					case 0x2:
-						pr_alert("ACPU PVS: Fast2(L%d)\n",
+						pr_info("ACPU PVS: Fast2(L%d)\n",
 							pvs_leakage);
 						v1 = acpu_freq_tbl_8960_kraitv1_slow;
 						v2 = acpu_freq_tbl_8960_kraitv2_fast;
 						break;
 					case 0x3:
-						pr_alert("ACPU PVS: Fast3(L%d)\n",
+						pr_info("ACPU PVS: Fast3(L%d)\n",
 							pvs_leakage);
 						v1 = acpu_freq_tbl_8960_kraitv1_slow;
-							v2 = acpu_freq_tbl_8960_kraitv2_f3;
+						v2 = acpu_freq_tbl_8960_kraitv2_f3;
 						break;
 					default:
 						pr_info("ACPU PVS: Fast\n");
@@ -1894,7 +1897,7 @@ static struct acpu_level * __init select_freq_plan(void)
 				|| ((pvs == 0x1)
 					&& (global_sec_pvs_value == 0xfafa))) {
 #endif
-			pr_alert("ACPU PVS: pvs[%d]:fmax[%d]-r\n", pvs, fmax);
+			pr_info("ACPU PVS: pvs[%d]:fmax[%d]-r\n", pvs, fmax);
 			boost_vdd_core(v2);
 		}
 #endif
