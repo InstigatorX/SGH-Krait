@@ -78,7 +78,7 @@
 #define HFPLL_NOMINAL_VDD	1050000
 #define HFPLL_LOW_VDD		 850000
 #endif
-#define HFPLL_MAX_VDD		1350000
+#define HFPLL_MAX_VDD		1400000
 #define HFPLL_LOW_VDD_PLL_L_MAX	0x28
 
 #define SECCLKAGD		BIT(4)
@@ -151,7 +151,7 @@ static struct scalable scalable_8960[] = {
 			.hfpll_base      = MSM_HFPLL_BASE + 0x200,
 			.aux_clk_sel     = MSM_ACC0_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
-			.vreg[VREG_CORE] = { "krait0",     1350000 },
+			.vreg[VREG_CORE] = { "krait0",     1400000 },
 			.vreg[VREG_MEM]  = { "krait0_mem", 1250000,
 					     RPM_VREG_VOTER1,
 					     RPM_VREG_ID_PM8921_L24 },
@@ -169,7 +169,7 @@ static struct scalable scalable_8960[] = {
 			.hfpll_base      = MSM_HFPLL_BASE + 0x300,
 			.aux_clk_sel     = MSM_ACC1_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
-			.vreg[VREG_CORE] = { "krait1",     1350000 },
+			.vreg[VREG_CORE] = { "krait1",     1400000 },
 			.vreg[VREG_MEM]  = { "krait0_mem", 1250000,
 					     RPM_VREG_VOTER2,
 					     RPM_VREG_ID_PM8921_L24 },
@@ -338,8 +338,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_nom[] = {
 	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(19), 1200000 },
 	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(19), 1250000 },
 #ifdef CONFIG_CPU_ULTIMATE
-	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(19), 1300000 },
-	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(19), 1350000 },
+	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(19), 1350000 },
 #endif
 #endif
 	{ 0, { 0 } }
