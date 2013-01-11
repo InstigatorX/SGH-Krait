@@ -634,11 +634,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 		goto out;
 	}
 	
-	#if defined(CONFIG_AUTO_HOTPLUG)
-		hotplug_boostpulse();
-		//dev_dbg(&client->dev, "[TSP] Hotplug boostpulse\n");
-	#endif
-	
 	for (i = 0; i < sz; i += FINGER_EVENT_SZ) {
 		u8 *tmp = &buf[i];
 		int id = (tmp[0] & 0xf) - 1;
@@ -723,6 +718,11 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			touch_is_pressed++;
 	}
 
+	#if defined(CONFIG_AUTO_HOTPLUG)
+		hotplug_boostpulse();
+		//dev_dbg(&client->dev, "[TSP] Hotplug boostpulse\n");
+	#endif
+		
 #if TOUCH_BOOSTER
 	set_dvfs_lock(info, !!touch_is_pressed);
 #endif
