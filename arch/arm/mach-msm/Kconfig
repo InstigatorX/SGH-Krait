@@ -1553,6 +1553,12 @@ config AUTO_HOTPLUG
 	default n
 	help
 	  Generic auto-hotplug cpu hotplug driver for ARM SOCs
+	  
+config AUTO_HOTPLUG_BOOST
+	bool "Enable auto-hotplug cpu hotplug screen booster"
+	default n
+	help
+	  Generic auto-hotplug cpu hotplug screen booster
 
 config MSM_CPU_AVS
 	bool "Enable software controlled Adaptive Voltage Scaling (AVS)"
