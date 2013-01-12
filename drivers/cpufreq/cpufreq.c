@@ -229,8 +229,9 @@ static void adjust_jiffies(unsigned long val, struct cpufreq_freqs *ci)
 		pr_debug("saving %lu as reference value for loops_per_jiffy; "
 			"freq is %u kHz\n", l_p_j_ref, l_p_j_ref_freq);
 	}
-	if ((val == CPUFREQ_POSTCHANGE  && ci->old != ci->new) ||
-	    (val == CPUFREQ_RESUMECHANGE || val == CPUFREQ_SUSPENDCHANGE)) {
+	if ((val == CPUFREQ_PRECHANGE  && ci->old < ci->new) ||
+		(val == CPUFREQ_POSTCHANGE && ci->old > ci->new) ||
+		(val == CPUFREQ_RESUMECHANGE || val == CPUFREQ_SUSPENDCHANGE)) {
 		loops_per_jiffy = cpufreq_scale(l_p_j_ref, l_p_j_ref_freq,
 								ci->new);
 		pr_debug("scaling loops_per_jiffy to %lu "
@@ -1129,10 +1130,8 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 		goto err_unlock_policy;
 	}
 	
-	if (policy->max > 1512000) {
-        pr_info("cpufreq policy max set to 1.5Ghz at boot");
-        policy->max = 1512000;
-    }
+	// imoseyon - don't go above 1.5ghz when adding device
+	if (policy->max > 1512000) policy->max = 1512000;
         
 	policy->user_policy.min = policy->min;
 	policy->user_policy.max = policy->max;
