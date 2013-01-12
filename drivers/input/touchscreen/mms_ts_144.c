@@ -177,7 +177,7 @@ enum {
 #define ISC_CHAR_2_BCD(num)	(((num/10)<<4) + (num%10))
 #define ISC_MAX(x, y)		(((x) > (y)) ? (x) : (y))
 
-#if defined(CONFIG_AUTO_HOTPLUG) 
+#if defined(CONFIG_AUTO_HOTPLUG_BOOST) 
 	void hotplug_boostpulse(void);
 #endif
 
@@ -718,7 +718,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			touch_is_pressed++;
 	}
 
-	#if defined(CONFIG_AUTO_HOTPLUG)
+	#if defined(CONFIG_AUTO_HOTPLUG_BOOST)
 		hotplug_boostpulse();
 		//dev_dbg(&client->dev, "[TSP] Hotplug boostpulse\n");
 	#endif
