@@ -728,7 +728,7 @@ struct create_idle {
 	int cpu;
 };
 
-static void __cpuinit smp_fork_idle(struct work_struct *work)
+static void smp_fork_idle(struct work_struct *work)
 {
 	struct create_idle *c_idle;
 
@@ -738,7 +738,7 @@ static void __cpuinit smp_fork_idle(struct work_struct *work)
 }
 
 /* Upping and downing of CPUs */
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
 	struct create_idle c_idle;
 	struct pcpu *pcpu;
@@ -1028,7 +1028,7 @@ static struct attribute_group cpu_online_attr_group = {
 	.attrs = cpu_online_attrs,
 };
 
-static int __cpuinit smp_cpu_notify(struct notifier_block *self,
+static int smp_cpu_notify(struct notifier_block *self,
 				    unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned int)(long)hcpu;
@@ -1049,7 +1049,7 @@ static int __cpuinit smp_cpu_notify(struct notifier_block *self,
 	return notifier_from_errno(err);
 }
 
-static struct notifier_block __cpuinitdata smp_cpu_nb = {
+static struct notifier_block smp_cpu_nb = {
 	.notifier_call = smp_cpu_notify,
 };
 

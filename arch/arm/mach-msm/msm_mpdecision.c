@@ -234,7 +234,7 @@ static int mp_decision(void) {
     return new_state;
 }
 
-static void __cpuinit msm_mpdec_work_thread(struct work_struct *work) {
+static void msm_mpdec_work_thread(struct work_struct *work) {
     unsigned int cpu = nr_cpu_ids;
     cputime64_t on_time = 0;
     bool suspended = false;
@@ -347,7 +347,7 @@ static void msm_mpdec_early_suspend(struct early_suspend *h) {
     pr_info(MPDEC_TAG"Screen -> off. Deactivated mpdecision.\n");
 }
 
-static void __cpuinit msm_mpdec_late_resume(struct early_suspend *h) {
+static void msm_mpdec_late_resume(struct early_suspend *h) {
     int cpu = nr_cpu_ids;
     for_each_possible_cpu(cpu)
         per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
@@ -600,7 +600,7 @@ static ssize_t store_min_cpus(struct kobject *a, struct attribute *b,
     return count;
 }
 
-static ssize_t __cpuinit
+static ssize_t
 store_enabled(struct kobject *a, struct attribute *b,
                    const char *buf, size_t count)
 {
