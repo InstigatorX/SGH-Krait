@@ -64,14 +64,14 @@
 */
 #ifdef CONFIG_HOTPLUG_CPU
 /*
- * Needed only for CONFIG_HOTPLUG_CPU because __cpuinitdata is
+ * Needed only for CONFIG_HOTPLUG_CPU because is
  * removed after init for !CONFIG_HOTPLUG_CPU.
  */
 static DEFINE_PER_CPU(struct task_struct *, idle_thread_array);
 #define get_idle_for_cpu(x)      (per_cpu(idle_thread_array, x))
 #define set_idle_for_cpu(x, p)   (per_cpu(idle_thread_array, x) = (p))
 #else
-static struct task_struct *idle_thread_array[NR_CPUS] __cpuinitdata ;
+static struct task_struct *idle_thread_array[NR_CPUS] ;
 #define get_idle_for_cpu(x)      (idle_thread_array[(x)])
 #define set_idle_for_cpu(x, p)   (idle_thread_array[(x)] = (p))
 #endif
@@ -408,7 +408,7 @@ struct create_idle {
 	int cpu;
 };
 
-static void __cpuinit do_fork_idle(struct work_struct *work)
+static void do_fork_idle(struct work_struct *work)
 {
 	struct create_idle *c_idle =
 		container_of(work, struct create_idle, work);
@@ -417,7 +417,7 @@ static void __cpuinit do_fork_idle(struct work_struct *work)
 	complete(&c_idle->done);
 }
 
-static int __cpuinit create_idle(unsigned int cpu)
+static int create_idle(unsigned int cpu)
 {
 	struct thread_info *ti;
 	struct create_idle c_idle = {
@@ -454,7 +454,7 @@ static int __cpuinit create_idle(unsigned int cpu)
 	return 0;
 }
 
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
 	int rc, c;
 

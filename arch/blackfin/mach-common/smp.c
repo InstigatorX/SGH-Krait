@@ -320,7 +320,7 @@ void smp_send_stop(void)
 	return;
 }
 
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
 	int ret;
 	static struct task_struct *idle;
@@ -343,7 +343,7 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	return ret;
 }
 
-static void __cpuinit setup_secondary(unsigned int cpu)
+static void setup_secondary(unsigned int cpu)
 {
 	unsigned long ilat;
 
@@ -361,7 +361,7 @@ static void __cpuinit setup_secondary(unsigned int cpu)
 	    IMASK_IVG10 | IMASK_IVG9 | IMASK_IVG8 | IMASK_IVG7 | IMASK_IVGHW;
 }
 
-void __cpuinit secondary_start_kernel(void)
+void secondary_start_kernel(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct mm_struct *mm = &init_mm;
@@ -479,7 +479,7 @@ EXPORT_SYMBOL(resync_core_dcache);
 #endif
 
 #ifdef CONFIG_HOTPLUG_CPU
-int __cpuexit __cpu_disable(void)
+int __cpu_disable(void)
 {
 	unsigned int cpu = smp_processor_id();
 
@@ -492,7 +492,7 @@ int __cpuexit __cpu_disable(void)
 
 static DECLARE_COMPLETION(cpu_killed);
 
-int __cpuexit __cpu_die(unsigned int cpu)
+int __cpu_die(unsigned int cpu)
 {
 	return wait_for_completion_timeout(&cpu_killed, 5000);
 }
