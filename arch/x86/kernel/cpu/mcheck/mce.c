@@ -1214,7 +1214,7 @@ int mce_notify_irq(void)
 }
 EXPORT_SYMBOL_GPL(mce_notify_irq);
 
-static int __cpuinit __mcheck_cpu_mce_banks_init(void)
+static int __mcheck_cpu_mce_banks_init(void)
 {
 	int i;
 
@@ -1233,7 +1233,7 @@ static int __cpuinit __mcheck_cpu_mce_banks_init(void)
 /*
  * Initialize Machine Checks for a CPU.
  */
-static int __cpuinit __mcheck_cpu_cap_init(void)
+static int __mcheck_cpu_cap_init(void)
 {
 	unsigned b;
 	u64 cap;
@@ -1300,7 +1300,7 @@ static void __mcheck_cpu_init_generic(void)
 }
 
 /* Add per CPU specific workarounds here */
-static int __cpuinit __mcheck_cpu_apply_quirks(struct cpuinfo_x86 *c)
+static int __mcheck_cpu_apply_quirks(struct cpuinfo_x86 *c)
 {
 	if (c->x86_vendor == X86_VENDOR_UNKNOWN) {
 		pr_info("MCE: unknown CPU type - not enabling MCE support.\n");
@@ -1428,7 +1428,7 @@ void (*machine_check_vector)(struct pt_regs *, long error_code) =
  * Called for each booted CPU to set up machine checks.
  * Must be called with preempt off:
  */
-void __cpuinit mcheck_cpu_init(struct cpuinfo_x86 *c)
+void mcheck_cpu_init(struct cpuinfo_x86 *c)
 {
 	if (mce_disabled)
 		return;
@@ -1812,7 +1812,6 @@ static struct sysdev_class mce_sysclass = {
 
 DEFINE_PER_CPU(struct sys_device, mce_dev);
 
-__cpuinitdata
 void (*threshold_cpu_callback)(unsigned long action, unsigned int cpu);
 
 static inline struct mce_bank *attr_to_bank(struct sysdev_attribute *attr)
@@ -2013,7 +2012,7 @@ static __cpuinit void mce_remove_device(unsigned int cpu)
 }
 
 /* Make sure there are no machine checks on offlined CPUs. */
-static void __cpuinit mce_disable_cpu(void *h)
+static void mce_disable_cpu(void *h)
 {
 	unsigned long action = *(unsigned long *)h;
 	int i;
@@ -2031,7 +2030,7 @@ static void __cpuinit mce_disable_cpu(void *h)
 	}
 }
 
-static void __cpuinit mce_reenable_cpu(void *h)
+static void mce_reenable_cpu(void *h)
 {
 	unsigned long action = *(unsigned long *)h;
 	int i;
@@ -2050,7 +2049,7 @@ static void __cpuinit mce_reenable_cpu(void *h)
 }
 
 /* Get notified when a cpu comes on/off. Be hotplug friendly. */
-static int __cpuinit
+static int
 mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
@@ -2091,7 +2090,7 @@ mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	return NOTIFY_OK;
 }
 
-static struct notifier_block mce_cpu_notifier __cpuinitdata = {
+static struct notifier_block mce_cpu_notifier = {
 	.notifier_call = mce_cpu_callback,
 };
 
