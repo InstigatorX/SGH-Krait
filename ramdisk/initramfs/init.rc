@@ -704,10 +704,6 @@ service drm /system/bin/drmserver
 #   group drm system inet drmrpc sdcard_r
 # ]
 
-service sysinit /system/bin/logwrapper /system/xbin/busybox run-parts /system/etc/init.d
-    disabled
-    oneshot
-
 on property:sys.boot_completed=1
     setprop service.bootanim.exit 1
     stop bootanim
@@ -906,7 +902,13 @@ on property:ro.yas.enable=true
     group system input
     disabled
 
-	service bugreport /system/bin/bugmailer.sh -v
+    service run_parts /system/xbin/busybox run-parts /system/etc/init.d
+    class late_start
+    oneshot
+    user root
+    group root
+
+    service bugreport /system/bin/bugmailer.sh -v
     class main
     disabled
     oneshot
