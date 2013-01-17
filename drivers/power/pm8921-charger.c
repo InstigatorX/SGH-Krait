@@ -206,7 +206,6 @@ static void handle_start_ext_chg(struct pm8921_chg_chip *chip)
 	int dc_present;
 	int batt_present;
 	int batt_temp_ok;
-	int vbat_ov;
 	unsigned long delay =
 		round_jiffies_relative(msecs_to_jiffies(EOC_CHECK_PERIOD_MS));
 
@@ -237,11 +236,6 @@ static void handle_start_ext_chg(struct pm8921_chg_chip *chip)
 		return;
 	}
 	pm8921_disable_source_current(true); /* Force BATFET=ON */
-	vbat_ov = pm_chg_get_rt_status(chip, VBAT_OV_IRQ);
-	if (vbat_ov) {
-		pr_warn("%s. battery over voltage.\n", __func__);
-		return;
-	}
 
 	power_supply_set_online(chip->ext_psy, dc_present);
 	power_supply_set_charge_type(chip->ext_psy,
@@ -403,12 +397,6 @@ static irqreturn_t vbatdet_low_irq_handler(int irq, void *data)
 static irqreturn_t usbin_uv_irq_handler(int irq, void *data)
 {
 	pr_err("USB UnderVoltage\n");
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t vbat_ov_irq_handler(int irq, void *data)
-{
-	pr_debug("fsm_state=%d\n", pm_chg_get_fsm_state(data));
 	return IRQ_HANDLED;
 }
 
@@ -1289,7 +1277,6 @@ struct pm_chg_irq_init_data chg_irq_data[] = {
 						vbatdet_low_irq_handler),
 	CHG_IRQ(USBIN_UV_IRQ, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 							usbin_uv_irq_handler),
-	CHG_IRQ(VBAT_OV_IRQ, IRQF_TRIGGER_RISING, vbat_ov_irq_handler),
 	CHG_IRQ(CHGWDOG_IRQ, IRQF_TRIGGER_RISING, chgwdog_irq_handler),
 	CHG_IRQ(VCP_IRQ, IRQF_TRIGGER_RISING, vcp_irq_handler),
 	CHG_IRQ(ATCDONE_IRQ, IRQF_TRIGGER_RISING, atcdone_irq_handler),
