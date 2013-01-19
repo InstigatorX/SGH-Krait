@@ -15,7 +15,7 @@ on early-init
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq 1512000
 
     # Set init and its forked children's oom_adj.
-    write /proc/1/oom_adj -16
+    write /proc/1/oom_score_adj -16
 
     start ueventd
 
@@ -233,7 +233,7 @@ on post-fs-data
     mkdir /data/ssh 0750 root shell
     mkdir /data/ssh/empty 0700 root root
 
-    $ SA, System SW, SAMSUNG create log directory
+    # SA, System SW, SAMSUNG create log directory
     mkdir /data/log 0775 system log
     chown system log /data/log
 
@@ -691,7 +691,7 @@ service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-sys
     onrestart write /sys/power/state on
     onrestart restart media
     onrestart restart netd
-#    onrestart restart gsiff_daemon
+    onrestart restart gsiff_daemon
 
 service drm /system/bin/drmserver
     class main
