@@ -87,10 +87,6 @@ static int sampling_rate_boosted;
 static u64 sampling_rate_boosted_time;
 static unsigned int current_sampling_rate;
 
-#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
-static unsigned int saved_policy_min;
-#endif
-
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event);
@@ -1313,19 +1309,14 @@ static void do_dbs_timer(struct work_struct *work)
 	int sample_type = dbs_info->sample_type;
 
 	int delay;
-#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
-	struct cpufreq_policy *policy;
 
-	policy = dbs_info->cur_policy;
-#endif
-
-	if (num_online_cpus() >= 2 && rq_info.rq_avg > 38)
+	if (num_online_cpus() == 2 && rq_info.rq_avg > 50)
 		rq_persist_count++;
 	else
 		if (rq_persist_count > 0)
 			rq_persist_count--;
 
-	if (rq_persist_count > 3) {
+	if (rq_persist_count > 10) {
 		lmf_browsing_state = false;
 		rq_persist_count = 0;
 	}

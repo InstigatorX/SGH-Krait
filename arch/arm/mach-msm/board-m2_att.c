@@ -178,11 +178,12 @@
 #endif
 
 #ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
-int set_two_phase_freq_badass(int cpufreq);
+	int set_two_phase_freq_badass(int cpufreq);
+	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+		int set_three_phase_freq_badass(int cpufreq);
+	#endif
 #endif
-#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
-int set_three_phase_freq_badass(int cpufreq);
-#endif
+
 
 #ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
 	int id_set_two_phase_freq(int cpufreq);
@@ -5202,6 +5203,18 @@ static void __init samsung_m2_att_init(void)
 #ifdef CONFIG_SEC_DEBUG
 	sec_debug_init();
 #endif
+	
+	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
+		set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
+		#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+			set_three_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE_FREQ);
+		#endif
+	#endif
+	
+	#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+		id_set_two_phase_freq(1134000);
+	#endif
+	
 	if (socinfo_init() < 0)
 		pr_err("socinfo_init() failed!\n");
 
@@ -5274,17 +5287,6 @@ static void __init samsung_m2_att_init(void)
 	msm8960_init_cam();
 	msm8960_init_mmc();
 	acpuclk_init(&acpuclk_8960_soc_data);
-	
-	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
-	set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
-	#endif
-	#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
-	set_three_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE_FREQ);
-	#endif
-
-	#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
-		id_set_two_phase_freq(1134000);
-	#endif
 	
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
