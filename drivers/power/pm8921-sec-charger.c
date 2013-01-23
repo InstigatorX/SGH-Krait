@@ -292,6 +292,7 @@ struct pm8921_chg_chip {
 	struct pm8921_irq		chg_irq;
 	struct proc_dir_entry	*entry;
 	int (*get_cable_type)(void);
+	int                             eoc_check_soc;
 };
 
 static int charging_disabled;
@@ -1428,13 +1429,26 @@ static int get_prop_batt_status(struct pm8921_chg_chip *chip)
 		if (!pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ)
 			|| !pm_chg_get_rt_status(chip, BAT_TEMP_OK_IRQ)
 			|| pm_chg_get_rt_status(chip, CHGHOT_IRQ)
-			|| pm_chg_get_rt_status(chip, VBATDET_LOW_IRQ))
+			|| (!chip->eoc_check_soc &&
+                    pm_chg_get_rt_status(chip, VBATDET_LOW_IRQ)))
 			pr_info("batt_in : %d, temp_ok : %d, hot_irq :%d\n",
 			pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ),
 			pm_chg_get_rt_status(chip, BAT_TEMP_OK_IRQ),
 			pm_chg_get_rt_status(chip, CHGHOT_IRQ));
 			batt_state = POWER_SUPPLY_STATUS_NOT_CHARGING;
 	}
+
+    if (chip->eoc_check_soc) {
+           if (get_prop_batt_capacity(chip) == 100) {
+                      if (batt_state == POWER_SUPPLY_STATUS_CHARGING)
+                              batt_state = POWER_SUPPLY_STATUS_FULL;
+             } else {
+                     if (batt_state == POWER_SUPPLY_STATUS_FULL)
+                             batt_state = POWER_SUPPLY_STATUS_CHARGING;
+           }
+    }
+
+    pr_debug("batt_state = %d fsm_state = %d \n",batt_state, fsm_state);
 	chip->charging_status = batt_state;
 	return batt_state;
 }
@@ -1677,6 +1691,32 @@ int pm8921_charger_enable(bool enable)
 }
 EXPORT_SYMBOL(pm8921_charger_enable);
 
+int pm8921_force_start_charging(void)
+{
+      int rc;
+
+   if (!the_chip) {
+             pr_err("called before init\n");
+            return -EINVAL;
+     }
+
+     if (the_chip->eoc_check_soc) {
+            rc = pm_chg_vbatdet_set(the_chip,
+                           the_chip->max_voltage_mv);
+           if (rc) {
+                      pr_err("failed to set vbatdet\n");
+                      return rc;
+           }
+      }
+
+      rc = pm_chg_auto_enable(the_chip, 1);
+      if (rc)
+              pr_err("Failed rc=%d\n", rc);
+
+      return rc;
+}
+EXPORT_SYMBOL(pm8921_force_start_charging);
+
 int pm8921_is_usb_chg_plugged_in(void)
 {
 	if (!the_chip) {
@@ -1873,6 +1913,28 @@ bool pm8921_is_battery_charging(int *source)
 	return is_charging;
 }
 EXPORT_SYMBOL(pm8921_is_battery_charging);
+
+int pm8921_get_batt_state(void)
+{
+    int batt_state = POWER_SUPPLY_STATUS_DISCHARGING;
+    int fsm_state;
+    int i;
+
+    if (!the_chip) {
+            pr_err("called before init\n");
+            return -EINVAL;
+    }
+
+    fsm_state = pm_chg_get_fsm_state(the_chip);
+
+    for (i = 0; i < ARRAY_SIZE(map); i++)
+            if (map[i].fsm_state == fsm_state)
+                   batt_state = map[i].batt_state;
+
+    pr_debug("batt_state = %d fsm_state = %d \n",batt_state, fsm_state);
+    return batt_state;
+}
+EXPORT_SYMBOL(pm8921_get_batt_state);
 
 int pm8921_batt_temperature(void)
 {
@@ -2086,11 +2148,15 @@ static irqreturn_t vbatdet_low_irq_handler(int irq, void *data)
 	high_transition = pm_chg_get_rt_status(chip, VBATDET_LOW_IRQ);
 
 	if (high_transition) {
-		/* enable auto charging */
-		pm_chg_auto_enable(chip, !charging_disabled);
-		pr_info("batt fell below resume voltage %s\n",
-			charging_disabled ? "" : "charger enabled");
+			if (!chip->eoc_check_soc
+                            || pm_chg_get_fsm_state(data) == FSM_STATE_ON_BAT_3) {
+                    /* enable auto charging */
+                   pm_chg_auto_enable(chip, !charging_disabled);
+                   pr_info("batt fell below resume voltage %s\n",
+                           charging_disabled ? "" : "charger enabled");
+           }
 	}
+	
 	pr_info("fsm_state=%d\n", pm_chg_get_fsm_state(data));
 
 	power_supply_changed(&chip->batt_psy);
@@ -2255,6 +2321,16 @@ static irqreturn_t fastchg_irq_handler(int irq, void *data)
 {
 	struct pm8921_chg_chip *chip = data;
 	int high_transition;
+    int rc;
+
+    if (chip->eoc_check_soc) {
+            rc = pm_chg_vbatdet_set(chip,
+                            chip->max_voltage_mv
+                            - chip->resume_voltage_delta);
+    if (rc)
+            pr_err("failed to set vbatdet rc=%d\n", rc);
+    }
+
 	pr_info("[CHG] %s\n", __func__);
 
 	high_transition = pm_chg_get_rt_status(chip, FASTCHG_IRQ);
@@ -2264,6 +2340,7 @@ static irqreturn_t fastchg_irq_handler(int irq, void *data)
 				      round_jiffies_relative(msecs_to_jiffies
 						     (EOC_CHECK_PERIOD_MS)));
 	}
+	
 	power_supply_changed(&chip->batt_psy);
 #ifdef CONFIG_PM8921_BMS
 	bms_notify_check(chip);
@@ -2685,6 +2762,7 @@ static void eoc_worker(struct work_struct *work)
 				struct pm8921_chg_chip, eoc_work);
 	static int count;
 	int end = is_charging_finished(chip);
+	int percent_soc;
 
 	if (end == CHG_NOT_IN_PROGRESS) {
 			/* enable fastchg irq */
@@ -2697,6 +2775,12 @@ static void eoc_worker(struct work_struct *work)
 		count++;
 	else
 		count = 0;
+		
+    if (chip->eoc_check_soc) {
+            percent_soc = get_prop_batt_capacity(chip);
+            if (percent_soc == 100)
+                    count = CONSECUTIVE_COUNT;
+    }
 
 	if (count == CONSECUTIVE_COUNT) {
 		count = 0;
@@ -4003,6 +4087,8 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	chip->cold_thr = pdata->cold_thr;
 	chip->hot_thr = pdata->hot_thr;
 
+	chip->eoc_check_soc = pdata->eoc_check_soc;
+	
 	chip->get_cable_type = pdata->get_cable_type;
 
 	chip->batt_soc = 100;
