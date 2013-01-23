@@ -1218,17 +1218,10 @@ static int pm_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 	case POWER_SUPPLY_PROP_ONLINE:
 #ifdef QUALCOMM_POWERSUPPLY_PROPERTY
-		if (psy->type == POWER_SUPPLY_TYPE_USB ||
-			psy->type == POWER_SUPPLY_TYPE_USB_DCP ||
-			psy->type == POWER_SUPPLY_TYPE_USB_CDP ||
-			psy->type == POWER_SUPPLY_TYPE_USB_ACA) {
-			chip = container_of(psy, struct pm8921_chg_chip,
-							usb_psy);
 			if (pm_is_chg_charge_dis_bit_set(chip))
 				val->intval = 0;
 			else
 				val->intval = is_usb_chg_plugged_in(chip);
-		}
 		break;
 #else
 	if (psy->type == POWER_SUPPLY_TYPE_MAINS) {
