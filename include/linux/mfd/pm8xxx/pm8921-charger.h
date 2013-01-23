@@ -100,6 +100,10 @@ enum pm8921_usb_debounce_time {
  *			VBAT_THERM goes below 35% of VREF_THERM, if low the
  *			battery will be considered hot when VBAT_THERM goes
  *			below 25% of VREF_THERM. Hardware defaults to low.
+ * @rconn_mohm:                resistance in milliOhm from the vbat sense to ground
+ *                     with the battery terminals shorted. This indicates
+ *                     resistance of the pads, connectors, battery terminals
+ *                     and rsense.
  */
 struct pm8921_charger_platform_data {
 	struct pm8xxx_charger_core_data	charger_cdata;
@@ -134,6 +138,7 @@ struct pm8921_charger_platform_data {
 #ifdef CONFIG_PM8921_SEC_CHARGER
 	int		(*get_cable_type)(void);
 #endif
+	int                             rconn_mohm;
 	int                             eoc_check_soc;
 };
 
