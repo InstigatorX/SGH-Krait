@@ -5212,7 +5212,7 @@ static void __init samsung_m2_att_init(void)
 	#endif
 	
 	#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
-		id_set_two_phase_freq(1134000);
+		id_set_two_phase_freq(1026000);
 	#endif
 	
 	if (socinfo_init() < 0)

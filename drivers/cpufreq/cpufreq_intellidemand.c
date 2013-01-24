@@ -54,7 +54,7 @@
 #define BOOSTED_SAMPLING_RATE			(15000)
 #define DBS_INPUT_EVENT_MIN_FREQ		(1026000)
 #define DBS_SYNC_FREQ				(702000)
-#define DBS_OPTIMAL_FREQ			(1296000)
+#define DBS_OPTIMAL_FREQ			(1242000)
 
 static u64 freq_boosted_time;
 /*
@@ -177,7 +177,8 @@ static struct dbs_tuners {
 	.sync_freq = DBS_SYNC_FREQ,
 	.optimal_freq = DBS_OPTIMAL_FREQ,
 	.freq_boost_time = DEFAULT_FREQ_BOOST_TIME,
-	.two_phase_freq = 0,
+	.two_phase_freq = DBS_INPUT_EVENT_MIN_FREQ,
+	.boostfreq = DBS_OPTIMAL_FREQ,
 };
 
 static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
@@ -1310,7 +1311,7 @@ static void do_dbs_timer(struct work_struct *work)
 
 	int delay;
 
-	if (num_online_cpus() == 2 && rq_info.rq_avg > 50)
+	if (num_online_cpus() == 2 && rq_info.rq_avg > 38)
 		rq_persist_count++;
 	else
 		if (rq_persist_count > 0)
