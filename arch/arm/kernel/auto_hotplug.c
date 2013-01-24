@@ -57,7 +57,7 @@
  * SAMPLING_PERIODS * SAMPLING_RATE is the minimum
  * load history which will be averaged
  */
-#define SAMPLING_PERIODS 	15
+#define SAMPLING_PERIODS 	12
 #define INDEX_MAX_VALUE		(SAMPLING_PERIODS - 1)
 /*
  * SAMPLING_RATE is scaled based on num_online_cpus()
@@ -80,9 +80,9 @@ unsigned char flags;
  * These two are scaled based on num_online_cpus()
  */
 
-static unsigned int enable_all_load_threshold __read_mostly = 400;
-static unsigned int enable_load_threshold __read_mostly = 275;
-static unsigned int disable_load_threshold __read_mostly = 125;
+static unsigned int enable_all_load_threshold __read_mostly = 425;
+static unsigned int enable_load_threshold __read_mostly = 300;
+static unsigned int disable_load_threshold __read_mostly = 150;
 
 module_param(enable_all_load_threshold, int, 0775);
 module_param(enable_load_threshold, int, 0775);
