@@ -297,14 +297,15 @@ void dump_cpu_stat(void)
 	getboottime(&boottime);
 	jif = boottime.tv_sec;
 	for_each_possible_cpu(i) {
-		user = cputime64_add(user, kstat_cpu(i).cpustat.user);
-		nice = cputime64_add(nice, kstat_cpu(i).cpustat.nice);
-		system = cputime64_add(system, kstat_cpu(i).cpustat.system);
-		idle = cputime64_add(idle, kstat_cpu(i).cpustat.idle);
-		idle = cputime64_add(idle, arch_idle_time(i));
-		iowait = cputime64_add(iowait, kstat_cpu(i).cpustat.iowait);
-		irq = cputime64_add(irq, kstat_cpu(i).cpustat.irq);
-		softirq = cputime64_add(softirq, kstat_cpu(i).cpustat.softirq);
+		user += kcpustat_cpu(i).cpustat[CPUTIME_USER];
+		system += kcpustat_cpu(i).cpustat[CPUTIME_SYSTEM];
+		irq += kcpustat_cpu(i).cpustat[CPUTIME_IRQ];
+		softirq += kcpustat_cpu(i).cpustat[CPUTIME_SOFTIRQ];
+		nice += kcpustat_cpu(i).cpustat[CPUTIME_NICE];
+		idle += kcpustat_cpu(i).cpustat[CPUTIME_IDLE];
+		idle += arch_idle_time(i);
+		iowait += kcpustat_cpu(i).cpustat[CPUTIME_IOWAIT];
+		
 		for_each_irq_nr(j) {
 			sum += kstat_irqs_cpu(j, i);
 		}
@@ -334,14 +335,14 @@ void dump_cpu_stat(void)
 	"--------------------------------\n");
 	for_each_online_cpu(i) {
 		/* Copy values here to work around gcc-2.95.3, gcc-2.96 */
-		user = kstat_cpu(i).cpustat.user;
-		nice = kstat_cpu(i).cpustat.nice;
-		system = kstat_cpu(i).cpustat.system;
-		idle = kstat_cpu(i).cpustat.idle;
-		idle = cputime64_add(idle, arch_idle_time(i));
-		iowait = kstat_cpu(i).cpustat.iowait;
-		irq = kstat_cpu(i).cpustat.irq;
-		softirq = kstat_cpu(i).cpustat.softirq;
+		user += kcpustat_cpu(i).cpustat[CPUTIME_USER];
+		system += kcpustat_cpu(i).cpustat[CPUTIME_SYSTEM];
+		irq += kcpustat_cpu(i).cpustat[CPUTIME_IRQ];
+		softirq += kcpustat_cpu(i).cpustat[CPUTIME_SOFTIRQ];
+		nice += kcpustat_cpu(i).cpustat[CPUTIME_NICE];
+		idle += kcpustat_cpu(i).cpustat[CPUTIME_IDLE];
+		idle += arch_idle_time(i);
+		iowait += kcpustat_cpu(i).cpustat[CPUTIME_IOWAIT];
 		printk(KERN_INFO " cpu%d user:%llu nice:%llu system:%llu"
 		"idle:%llu iowait:%llu  irq:%llu softirq:%llu %llu %llu "
 		"%llu\n",
