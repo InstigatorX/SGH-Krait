@@ -356,7 +356,12 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.rconn_mohm			= 18,
 	.normal_voltage_calc_ms		= 20000,
 	.low_voltage_calc_ms		= 1000,
+<<<<<<< HEAD
 >>>>>>> 683472d... power: pm8921-bms: use configurable poll times
+=======
+	.alarm_low_mv			= 3400,
+	.alarm_high_mv			= 4000,
+>>>>>>> 6fe4ffa... power: pm8921-bms: Enable batt alarm
 };
 
 >>>>>>> 3c37882... power: bms/ccadc: move ccadc calibration to ccadc driver
