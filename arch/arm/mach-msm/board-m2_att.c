@@ -176,6 +176,10 @@
 #include <asm/kexec.h>
 #endif
 
+#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+	int id_set_two_phase_freq(int cpufreq);
+#endif
+
 #ifdef CONFIG_TOUCHSCREEN_MMS144
 struct tsp_callbacks *charger_callbacks;
 struct tsp_callbacks {
@@ -5252,6 +5256,11 @@ static void __init samsung_m2_att_init(void)
 	msm8960_init_cam();
 	msm8960_init_mmc();
 	acpuclk_init(&acpuclk_8960_soc_data);
+	
+	#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+		id_set_two_phase_freq(1134000);
+	#endif
+	
 	if (machine_is_msm8960_liquid())
 		mxt_init_hw_liquid();
 	samsung_sys_class_init();
