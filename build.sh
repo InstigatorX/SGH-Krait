@@ -31,3 +31,5 @@ zip -r ~/Google\ Drive/I747\ Kernels/CM10.1/iX-CM10.1-I747-Kernel-"$timestamp".z
 echo $timestamp
 
 cd ..
+
+git tag -a $timestamp -m buildtag
