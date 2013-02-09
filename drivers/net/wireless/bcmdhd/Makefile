@@ -8,9 +8,15 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER             \
         -DDHDTHREAD -DBDC -DOOB_INTR_ONLY                                     \
         -DDHD_BCMEVENTS -DSHOW_EVENTS -DBCMDBG                                \
         -DMMC_SDIO_ABORT -DBCMSDIO -DBCMLXSDMMC -DBCMPLATFORM_BUS -DWLP2P     \
-        -DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT          \
+        -DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT          					  \
         -DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
-        -DEMBEDDED_PLATFORM -DPNO_SUPPORT
+        -DEMBEDDED_PLATFORM -DPNO_SUPPORT									  \
+        -DSDTEST -DTOE                          \
+        -DGET_CUSTOM_MAC_ENABLE             \
+        -DENABLE_INSMOD_NO_FW_LOAD          \
+        -DSET_RANDOM_MAC_SOFTAP       \
+        -DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
+        -Idrivers/net/wireless/bcmdhd -Idrivers/net/wireless/bcmdhd/include
 
 #################
 # Common feature
