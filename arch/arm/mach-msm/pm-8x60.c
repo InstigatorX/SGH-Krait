@@ -881,6 +881,7 @@ void arch_idle(void)
 int msm_pm_idle_prepare(struct cpuidle_device *dev)
 {
 	int i;
+	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 	uint32_t modified_time_us = 0;
 	struct msm_pm_time_params time_param;
 
@@ -990,6 +991,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev)
 			state->exit_latency = 0;
 			state->power_usage = rs_limits->power[dev->cpu];
 			modified_time_us = time_param.modified_time_us;
+			ret = mode;
 			if (MSM_PM_SLEEP_MODE_POWER_COLLAPSE == mode)
 				msm_pm_idle_rs_limits = rs_limits;
 		} else {
@@ -999,7 +1001,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev)
 
 	if (modified_time_us && !dev->cpu)
 		msm_pm_set_timer(modified_time_us);
-	return 0;
+	return ret;
 }
 
 int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
@@ -1071,9 +1073,14 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 		break;
 	}
 
+	case MSM_PM_SLEEP_MODE_NOT_SELECTED:
+		goto cpuidle_enter_bail;
+		break;
+
 	default:
 		__WARN();
 		goto cpuidle_enter_bail;
+		break;
 	}
 
 	time = ktime_to_ns(ktime_get()) - time;
