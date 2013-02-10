@@ -79,3 +79,4 @@ GTAGS
 *.orig
 *~
 \#*#
+!boot.img-ramdisk.gz
