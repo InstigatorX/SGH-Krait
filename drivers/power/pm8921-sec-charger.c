@@ -4390,6 +4390,11 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->unplug_ovp_fet_open_work,
 					unplug_ovp_fet_open_worker);
 	INIT_DELAYED_WORK(&chip->unplug_check_work, unplug_check_worker);
+	
+	INIT_WORK(&chip->bms_notify.work, bms_notify);
+	INIT_WORK(&chip->battery_id_valid_work, battery_id_valid);
+
+	INIT_DELAYED_WORK(&chip->update_heartbeat_work, update_heartbeat);
 
 	rc = request_irqs(chip, pdev);
 	if (rc) {
@@ -4437,7 +4442,6 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_PM8921_BMS
 	pr_info("CONFIG_PM8921_BMS enabled\n");
-	INIT_WORK(&chip->bms_notify.work, bms_notify);
 #else
 	rc = pm_chg_masked_write(chip, BMS_CONTROL, EN_BMS_BIT, 0);
 	if (rc)
@@ -4445,16 +4449,14 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 
 	pr_info("CONFIG_PM8921_BMS disabled\n");
 #endif
-	INIT_WORK(&chip->battery_id_valid_work, battery_id_valid);
-
+	
 	/* determine what state the charger is in */
 	determine_initial_state(chip);
 
-	if (chip->update_time) {
-		INIT_DELAYED_WORK(&chip->update_heartbeat_work,
-							update_heartbeat);
-		schedule_delayed_work(&chip->update_heartbeat_work, 0);
-	}
+	if (chip->update_time)
+		schedule_delayed_work(&chip->update_heartbeat_work,
+                                      round_jiffies_relative(msecs_to_jiffies
+                                                        (chip->update_time)));
 
 	handle_usb_insertion_removal(chip);
 
