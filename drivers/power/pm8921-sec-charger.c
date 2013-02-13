@@ -1717,23 +1717,6 @@ void pm8921_charger_vbus_draw(unsigned int mA)
 }
 EXPORT_SYMBOL_GPL(pm8921_charger_vbus_draw);
 
-int pm8921_charger_enable(bool enable)
-{
-	int rc;
-	pr_info("[CHG] %s\n", __func__);
-
-	if (!the_chip) {
-		pr_err("called before init\n");
-		return -EINVAL;
-	}
-	enable = !!enable;
-	rc = pm_chg_auto_enable(the_chip, enable);
-	if (rc)
-		pr_err("Failed rc=%d\n", rc);
-	return rc;
-}
-EXPORT_SYMBOL(pm8921_charger_enable);
-
 int pm8921_force_start_charging(void)
 {
       int rc;
