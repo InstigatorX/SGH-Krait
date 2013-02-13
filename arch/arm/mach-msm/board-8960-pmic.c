@@ -461,7 +461,8 @@ static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 #endif /* CONFIG_PM8921_SEC_CHARGER */
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
-	.resume_voltage_delta	= 100,
+	.resume_voltage_delta   = 60,
+	.resume_charge_percent  = 99,	
 	.term_current		= 100,
 	.temp_check_period	= 1,
 	.max_bat_chg_current	= 1100,
