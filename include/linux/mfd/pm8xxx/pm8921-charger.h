@@ -144,6 +144,11 @@ struct pm8921_charger_platform_data {
 #endif
 	int                             rconn_mohm;
 	int                             eoc_check_soc;
+       int                             btc_override;
+       int                             btc_override_cold_degc;
+       int                             btc_override_hot_degc;
+       int                             btc_delay_ms;
+       int                             btc_panic_if_cant_stop_chg;
 };
 
 enum pm8921_charger_source {
