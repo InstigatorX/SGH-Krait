@@ -1317,6 +1317,34 @@ static unsigned int voltage_based_capacity(struct pm8921_chg_chip *chip)
 		    / (high_voltage - low_voltage);
 }
 
+static int get_prop_batt_status(struct pm8921_chg_chip *chip)
+{
+	int batt_state = POWER_SUPPLY_STATUS_DISCHARGING;
+	int fsm_state = pm_chg_get_fsm_state(chip);
+	int i;
+
+	if (chip->ext_psy) {
+		if (chip->ext_charge_done)
+			return POWER_SUPPLY_STATUS_FULL;
+		if (chip->ext_charging)
+			return POWER_SUPPLY_STATUS_CHARGING;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(map); i++)
+		if (map[i].fsm_state == fsm_state)
+			batt_state = map[i].batt_state;
+
+	if (fsm_state == FSM_STATE_ON_CHG_HIGHI_1) {
+		if (!pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ)
+			|| !pm_chg_get_rt_status(chip, BAT_TEMP_OK_IRQ)
+			|| pm_chg_get_rt_status(chip, CHGHOT_IRQ)
+			|| pm_chg_get_rt_status(chip, VBATDET_LOW_IRQ))
+
+			batt_state = POWER_SUPPLY_STATUS_NOT_CHARGING;
+	}
+	return batt_state;
+}
+
 static int get_prop_batt_capacity(struct pm8921_chg_chip *chip)
 {
 #if defined(CONFIG_BATTERY_MAX17040) || \
@@ -1329,8 +1357,8 @@ static int get_prop_batt_capacity(struct pm8921_chg_chip *chip)
        pr_warn_ratelimited("low battery charge = %d%%\n",
                        percent_soc);
  
-   if (chip->recent_reported_soc == (chip->resume_charge_percent + 1)
-           && percent_soc == chip->resume_charge_percent) {
+   if (percent_soc <= chip->resume_charge_percent
+       && get_prop_batt_status(chip) == POWER_SUPPLY_STATUS_FULL) {
        pr_debug("soc fell below %d. charging enabled.\n",
                        chip->resume_charge_percent);
        if (chip->is_bat_warm)
@@ -1469,51 +1497,6 @@ static int get_prop_charge_type(struct pm8921_chg_chip *chip)
 		return POWER_SUPPLY_CHARGE_TYPE_FAST;
 
 	return POWER_SUPPLY_CHARGE_TYPE_NONE;
-}
-
-static int get_prop_batt_status(struct pm8921_chg_chip *chip)
-{
-	int batt_state = POWER_SUPPLY_STATUS_DISCHARGING;
-	int fsm_state = pm_chg_get_fsm_state(chip);
-	int i;
-
-	if (chip->ext_psy) {
-		if (chip->ext_charge_done)
-			return POWER_SUPPLY_STATUS_FULL;
-		if (chip->ext_charging)
-			return POWER_SUPPLY_STATUS_CHARGING;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(map); i++)
-		if (map[i].fsm_state == fsm_state)
-			batt_state = map[i].batt_state;
-
-	if (fsm_state == FSM_STATE_ON_CHG_HIGHI_1) {
-		if (!pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ)
-			|| !pm_chg_get_rt_status(chip, BAT_TEMP_OK_IRQ)
-			|| pm_chg_get_rt_status(chip, CHGHOT_IRQ)
-			|| (!chip->eoc_check_soc &&
-                    pm_chg_get_rt_status(chip, VBATDET_LOW_IRQ)))
-			pr_info("batt_in : %d, temp_ok : %d, hot_irq :%d\n",
-			pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ),
-			pm_chg_get_rt_status(chip, BAT_TEMP_OK_IRQ),
-			pm_chg_get_rt_status(chip, CHGHOT_IRQ));
-			batt_state = POWER_SUPPLY_STATUS_NOT_CHARGING;
-	}
-
-    if (chip->eoc_check_soc) {
-           if (get_prop_batt_capacity(chip) == 100) {
-                      if (batt_state == POWER_SUPPLY_STATUS_CHARGING)
-                              batt_state = POWER_SUPPLY_STATUS_FULL;
-             } else {
-                     if (batt_state == POWER_SUPPLY_STATUS_FULL)
-                             batt_state = POWER_SUPPLY_STATUS_CHARGING;
-           }
-    }
-
-    pr_debug("batt_state = %d fsm_state = %d \n",batt_state, fsm_state);
-	chip->charging_status = batt_state;
-	return batt_state;
 }
 
 static int get_prop_batt_temp(struct pm8921_chg_chip *chip)
@@ -2838,6 +2821,22 @@ static void adjust_vdd_max_for_fastchg(struct pm8921_chg_chip *chip,
 	pm_chg_vddmax_set(chip, adj_vdd_max_mv);
 }
 
+static void set_appropriate_vbatdet(struct pm8921_chg_chip *chip)
+{
+	if (chip->is_bat_cool)
+		pm_chg_vbatdet_set(the_chip,
+			the_chip->cool_bat_voltage
+			- the_chip->resume_voltage_delta);
+	else if (chip->is_bat_warm)
+		pm_chg_vbatdet_set(the_chip,
+			the_chip->warm_bat_voltage
+			- the_chip->resume_voltage_delta);
+	else
+		pm_chg_vbatdet_set(the_chip,
+			the_chip->max_voltage_mv
+			- the_chip->resume_voltage_delta);
+}
+
 enum {
 	CHG_IN_PROGRESS,
 	CHG_NOT_IN_PROGRESS,
@@ -2998,8 +2997,7 @@ static void eoc_worker(struct work_struct *work)
 
 	if (end == CHG_NOT_IN_PROGRESS) {
 		count = 0;
-        wake_unlock(&chip->eoc_wake_lock);
-        return;
+		goto eoc_worker_stop;
 	}
 
 	if (end == CHG_FINISHED)
@@ -3016,21 +3014,6 @@ static void eoc_worker(struct work_struct *work)
 	if (count == CONSECUTIVE_COUNT) {
 		count = 0;
 		pr_info("End of Charging\n");
-		/* set the vbatdet back, in case it was changed
-		 * to trigger charging */
-		if (chip->is_bat_cool) {
-			pm_chg_vbatdet_set(the_chip,
-				the_chip->cool_bat_voltage
-				- the_chip->resume_voltage_delta);
-		} else if (chip->is_bat_warm) {
-			pm_chg_vbatdet_set(the_chip,
-				the_chip->warm_bat_voltage
-				- the_chip->resume_voltage_delta);
-		} else {
-			pm_chg_vbatdet_set(the_chip,
-				the_chip->max_voltage_mv
-				- the_chip->resume_voltage_delta);
-		}
 
 		pm_chg_auto_enable(chip, 0);
 
@@ -3043,14 +3026,19 @@ static void eoc_worker(struct work_struct *work)
 			chip->bms_notify.is_battery_full = 1;
 		/* declare end of charging by invoking chgdone interrupt */
 		chgdone_irq_handler(chip->pmic_chg_irq[CHGDONE_IRQ], chip);
-		wake_unlock(&chip->eoc_wake_lock);
 	} else {
 		adjust_vdd_max_for_fastchg(chip, vbat_batt_terminal_uv);
 		pr_debug("EOC count = %d\n", count);
 		schedule_delayed_work(&chip->eoc_work,
 			      round_jiffies_relative(msecs_to_jiffies
 						     (EOC_CHECK_PERIOD_MS)));
+		return;
 	}
+
+eoc_worker_stop:
+	wake_unlock(&chip->eoc_wake_lock);
+	/* set the vbatdet back, in case it was changed to trigger charging */
+	set_appropriate_vbatdet(chip);
 }
 
 static void btm_configure_work(struct work_struct *work)
@@ -3091,19 +3079,13 @@ static void battery_cool(bool enter)
 	if (enter) {
 		btm_config.low_thr_temp =
 			the_chip->cool_temp_dc + TEMP_HYSTERISIS_DEGC;
-		set_appropriate_battery_current(the_chip);
 		pm_chg_vddmax_set(the_chip, the_chip->cool_bat_voltage);
-		pm_chg_vbatdet_set(the_chip,
-			the_chip->cool_bat_voltage
-			- the_chip->resume_voltage_delta);
 	} else {
 		btm_config.low_thr_temp = the_chip->cool_temp_dc;
-		set_appropriate_battery_current(the_chip);
 		pm_chg_vddmax_set(the_chip, the_chip->max_voltage_mv);
-		pm_chg_vbatdet_set(the_chip,
-			the_chip->max_voltage_mv
-			- the_chip->resume_voltage_delta);
 	}
+	set_appropriate_battery_current(the_chip);
+	set_appropriate_vbatdet(the_chip);
 	schedule_work(&btm_config_work);
 }
 
@@ -3116,19 +3098,13 @@ static void battery_warm(bool enter)
 	if (enter) {
 		btm_config.high_thr_temp =
 			the_chip->warm_temp_dc - TEMP_HYSTERISIS_DEGC;
-		set_appropriate_battery_current(the_chip);
 		pm_chg_vddmax_set(the_chip, the_chip->warm_bat_voltage);
-		pm_chg_vbatdet_set(the_chip,
-			the_chip->warm_bat_voltage
-			- the_chip->resume_voltage_delta);
 	} else {
 		btm_config.high_thr_temp = the_chip->warm_temp_dc;
-		set_appropriate_battery_current(the_chip);
 		pm_chg_vddmax_set(the_chip, the_chip->max_voltage_mv);
-		pm_chg_vbatdet_set(the_chip,
-			the_chip->max_voltage_mv
-			- the_chip->resume_voltage_delta);
 	}
+	set_appropriate_battery_current(the_chip);
+	set_appropriate_vbatdet(the_chip);
 	schedule_work(&btm_config_work);
 }
 
