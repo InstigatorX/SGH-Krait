@@ -143,7 +143,7 @@ static void hotplug_decision_work_fn(struct work_struct *work)
 				 * load in one sample time.
 				 */ 
 				if (count++ == 4) {
-					schedule_delayed_work_on(0, &hotplug_offline_work, 0);
+					schedule_delayed_work_on(0, &hotplug_offline_work, SAMPLING_RATE/num_online_cpus());
 					
 					count = 0;
 				}
@@ -151,13 +151,13 @@ static void hotplug_decision_work_fn(struct work_struct *work)
 		}
 	}
 
-	schedule_delayed_work_on(0, &hotplug_decision_work, msecs_to_jiffies(SAMPLING_RATE/num_online_cpus()));
+	schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 }
 
 static void online_cpu_nr(int cpu)
 {
 	int ret;
-	
+		
 	ret = cpu_up(cpu);
 	pr_info("auto_hotplug: CPU%d online.\n", cpu);
 	if (ret)
@@ -167,7 +167,7 @@ static void online_cpu_nr(int cpu)
 static void offline_cpu_nr(int cpu)
 {
 	int ret;
-	
+		
 	ret = cpu_down(cpu);
 	pr_info("auto_hotplug: CPU%d down.\n", cpu);
 	if (ret)
@@ -188,11 +188,14 @@ static void __cpuinit hotplug_online_all_work_fn(struct work_struct *work)
 		schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 		return;
 	} else {
-		online_cpu_nr(1);
+		if (!cpu_online(1))
+			online_cpu_nr(1);
 	
 		if (quad_core_mode) {
-			online_cpu_nr(2);
-			online_cpu_nr(3);
+			if (!cpu_online(2))
+				online_cpu_nr(2);
+			if (!cpu_online(3))
+				online_cpu_nr(3);
 		}
 	}
 }
@@ -219,7 +222,7 @@ static void __cpuinit hotplug_online_single_work_fn(struct work_struct *work)
 			}
 		}
 	}
-	schedule_delayed_work_on(0, &hotplug_decision_work, HZ);
+	schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 }
 
 static void hotplug_offline_single_work_fn(struct work_struct *work)
@@ -231,7 +234,7 @@ static void hotplug_offline_single_work_fn(struct work_struct *work)
 			break;
 		}
 	}
-	schedule_delayed_work_on(0, &hotplug_decision_work, HZ);
+	schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 }
 
 inline void hotplug_boostpulse(void)
@@ -256,7 +259,7 @@ inline void hotplug_boostpulse(void)
 			if (delayed_work_pending(&hotplug_offline_work)) {
 				cancel_delayed_work(&hotplug_offline_work);
 				hotplug_paused = true;
-				schedule_delayed_work_on(0, &hotplug_decision_work, HZ);
+				schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 			}
 		}
 	}
@@ -285,7 +288,7 @@ static void __cpuinit auto_hotplug_late_resume(struct early_suspend *handler)
 	if (hotplug_routines) {
 		if (!cpu_online(1))
 			online_cpu_nr(1);
-		schedule_delayed_work_on(0, &hotplug_decision_work, HZ);
+		schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 	} else
 		schedule_work_on(0, &hotplug_online_all_work);
 }
