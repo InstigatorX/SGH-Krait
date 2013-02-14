@@ -267,6 +267,11 @@ static inline const void *of_get_property(const struct device_node *node,
 	return NULL;
 }
 
+static inline int of_alias_get_id(struct device_node *np, const char *stem)
+{
+       return -ENOSYS;
+}
+
 #endif /* CONFIG_OF */
 
 static inline int of_property_read_u32(const struct device_node *np,
