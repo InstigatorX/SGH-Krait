@@ -4559,7 +4559,7 @@ static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR * 2] = {
 
         [MSM_PM_MODE(0, MSM_PM_SLEEP_MODE_RETENTION)] = {
                 .idle_supported = 1,
-                .suspend_supported = 0,
+                .suspend_supported = 1,
                 .idle_enabled = 1,
                 .suspend_enabled = 0,
         },
@@ -4588,7 +4588,7 @@ static struct msm_pm_platform_data msm_pm_data[MSM_PM_SLEEP_MODE_NR * 2] = {
         [MSM_PM_MODE(1, MSM_PM_SLEEP_MODE_RETENTION)] = {
                 .idle_supported = 1,
                 .suspend_supported = 1,
-                .idle_enabled = 1,
+                .idle_enabled = 0,
                 .suspend_enabled = 0,
         },
 
@@ -5348,6 +5348,9 @@ static void __init samsung_m2_att_init(void)
 	msm8960_init_pmic();
 	msm8960_i2c_init();
 	msm8960_gfx_init();
+	
+	msm_pm_set_tz_retention_flag(1);
+	
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
 	msm8960_init_buses();
@@ -5430,8 +5433,6 @@ static void __init samsung_m2_att_init(void)
 
 	if (PLATFORM_IS_CHARM25())
 		platform_add_devices(mdm_devices, ARRAY_SIZE(mdm_devices));
-
-        msm_pm_set_tz_retention_flag(1);
 }
 
 MACHINE_START(M2_ATT, "SAMSUNG M2_ATT")
