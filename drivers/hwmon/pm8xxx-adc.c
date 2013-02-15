@@ -473,7 +473,7 @@ int pm8921_enable_batt_therm(u8 en)
 			CHG_CNTRL_2, rc);
 		return rc;
 	}
-
+	return 0;
 }
 
 static void pm8xxx_adc_btm_warm_scheduler_fn(struct work_struct *work)
