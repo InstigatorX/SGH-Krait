@@ -1579,40 +1579,36 @@ static void sec_bat_monitor_work(struct work_struct *work)
 		goto monitoring_skip;
 	}
 
-    if (sec_bat_recovery_mode == 1
-            || system_state == SYSTEM_RESTART) {
-            pm8921_enable_batt_therm(0);
-        	info->present = 1;
-        	pr_info("%s : recovery/restart, skip batt check(1)\n",
-                        __func__);
-        } else {
-                pm8921_enable_batt_therm(1);
-                /* check battery 5 times */
-            	for (i = 0; i < 5; i++) {
-                        msleep(500);
-                        if (sec_bat_recovery_mode == 1
-                                || system_state == SYSTEM_RESTART) {
-                                pm8921_enable_batt_therm(0);
-                    			info->present = 1;
-                    			pr_info("%s : recovery/restart, skip batt check(2)\n",
-                                            __func__);
-                                break;
-                        }
-
-                	info->present = !gpio_get_value_cansleep(
-                            info->batt_int);
-
-                    /* If the battery is missing, then check more */
-                    if (info->present) {
-                            i++;
-                    		break;
-                    }
-
-		}
+    if (sec_bat_recovery_mode == 1 || system_state == SYSTEM_RESTART) {
         pm8921_enable_batt_therm(0);
-        pr_info("%s: battery check is %s (%d time%c)\n",
-                __func__, info->present ? "present" : "absent",
-                i, (i == 1) ? ' ' : 's');
+        info->present = 1;
+        pr_info("%s : recovery/restart, skip batt check(1)\n",
+                __func__);
+    } else 
+    
+    {
+		pm8921_enable_batt_therm(1);
+        /* check battery 5 times */
+        for (i = 0; i < 5; i++) {
+        	if (sec_bat_recovery_mode == 1 || system_state == SYSTEM_RESTART) {
+        		pm8921_enable_batt_therm(0);
+                info->present = 1;
+                pr_info("%s : recovery/restart, skip batt check(2)\n", __func__);
+                break;
+			}
+
+       		info->present = !gpio_get_value_cansleep(info->batt_int);
+        	/* If the battery is missing, then check more */
+        	if (info->present) {
+				i++;
+	   			break;
+	   		}
+	   		msleep(500);
+		}	
+		pm8921_enable_batt_therm(0);
+		pr_info("%s: battery check is %s (%d time%c)\n",
+			__func__, info->present ? "present" : "absent",
+			i, (i == 1) ? ' ' : 's');
 	}
 
 	if ((info->present == BATT_STATUS_MISSING)
