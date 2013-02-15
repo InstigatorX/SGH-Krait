@@ -124,14 +124,6 @@ static void hotplug_decision_work_fn(struct work_struct *work)
 			count = 0;
 			
 			return;
-		} else if ((avg_running >= enable_load) && (online_cpus < available_cpus)) {
-			if (delayed_work_pending(&hotplug_offline_work))
-				cancel_delayed_work(&hotplug_offline_work);
-			schedule_work(&hotplug_online_single_work);
-			
-			count = 0;
-			
-			return;
 		} else if (avg_running < disable_load && online_cpus > 1) {
 			if (boostpulse_active) {
 				boostpulse_active = false;
@@ -159,9 +151,12 @@ static void online_cpu_nr(int cpu)
 	int ret;
 		
 	ret = cpu_up(cpu);
-	pr_info("auto_hotplug: CPU%d online.\n", cpu);
-	if (ret)
+	
+	if (ret) {
 		pr_info("Error %d online core %d\n", ret, cpu);
+	} else {
+		pr_info("auto_hotplug: CPU%d online.\n", cpu);
+	}
 }
 
 static void offline_cpu_nr(int cpu)
@@ -169,70 +164,46 @@ static void offline_cpu_nr(int cpu)
 	int ret;
 		
 	ret = cpu_down(cpu);
-	pr_info("auto_hotplug: CPU%d down.\n", cpu);
-	if (ret)
+	
+	if (ret) {
 		pr_info("Error %d offline core %d\n", ret, cpu);
+	} else {
+		pr_info("auto_hotplug: CPU%d down.\n", cpu);
+	}
 }
 
 static void __cpuinit hotplug_online_all_work_fn(struct work_struct *work)
 {
-	int cpu;
 	if (hotplug_routines) {
-		for_each_possible_cpu(cpu) {
-			if (cpu) {
-				if (!cpu_online(cpu))
-					online_cpu_nr(cpu);			
-			}
-		}
-		
+		if (!cpu_online(1))
+			online_cpu_nr(1);
 		schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 		return;
 	} else {
 		if (!cpu_online(1))
 			online_cpu_nr(1);
-	
-		if (quad_core_mode) {
-			if (!cpu_online(2))
-				online_cpu_nr(2);
-			if (!cpu_online(3))
-				online_cpu_nr(3);
-		}
 	}
 }
 
 static void hotplug_offline_all_work_fn(struct work_struct *work)
 {
-	int cpu;
-	for_each_possible_cpu(cpu) {
-		if (likely(cpu_online(cpu) && (cpu))) {
-			offline_cpu_nr(cpu);
-		}
+	if (likely(cpu_online(1))) {
+		offline_cpu_nr(1);
 	}
 }
 
 static void __cpuinit hotplug_online_single_work_fn(struct work_struct *work)
 {
-	int cpu;
-
-	for_each_possible_cpu(cpu) {
-		if (cpu) {
-			if (!cpu_online(cpu)) {
-				online_cpu_nr(cpu);
-				break;
-			}
-		}
+	if (!cpu_online(1)) {
+		online_cpu_nr(1);
 	}
 	schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 }
 
 static void hotplug_offline_single_work_fn(struct work_struct *work)
 {
-	int cpu;
-	for_each_online_cpu(cpu) {
-		if (cpu) {
-			offline_cpu_nr(cpu);
-			break;
-		}
+	if (cpu_online(1)) {
+		offline_cpu_nr(1);
 	}
 	schedule_delayed_work_on(0, &hotplug_decision_work, SAMPLING_RATE/num_online_cpus());
 }
