@@ -303,6 +303,7 @@ struct pm8921_chg_chip {
     bool                btc_panic_if_cant_stop_chg;
 };
 
+static int usb_max_current;
 static int charging_disabled;
 static int thermal_mitigation;
 
@@ -3363,6 +3364,28 @@ module_param_call(thermal_mitigation, set_therm_mitigation_level,
 					param_get_uint,
 					&thermal_mitigation, 0644);
 
+static int set_usb_max_current(const char *val, struct kernel_param *kp)
+{
+       int ret, mA;
+       struct pm8921_chg_chip *chip = the_chip;
+
+       ret = param_set_int(val, kp);
+       if (ret) {
+               pr_err("error setting value %d\n", ret);
+               return ret;
+       }
+       if (chip) {
+               pr_warn("setting current max to %d\n", usb_max_current);
+               pm_chg_iusbmax_get(chip, &mA);
+               if (mA > usb_max_current)
+                       pm8921_charger_vbus_draw(usb_max_current);
+               return 0;
+       }
+       return -EINVAL;
+}
+module_param_call(usb_max_current, set_usb_max_current, param_get_uint,
+                                       &usb_max_current, 0644);
+
 static void free_irqs(struct pm8921_chg_chip *chip)
 {
 	int i;
@@ -4574,7 +4597,8 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	!defined(CONFIG_BATTERY_MAX17042)
 	enable_irq_wake(chip->pmic_chg_irq[VBATDET_LOW_IRQ]);
 #endif
-
+	enable_irq_wake(chip->pmic_chg_irq[FASTCHG_IRQ]);
+	
 	create_debugfs_entries(chip);
 	/* create sec detail attributes */
 	rc = sec_bat_create_attrs(chip->batt_psy.dev);
