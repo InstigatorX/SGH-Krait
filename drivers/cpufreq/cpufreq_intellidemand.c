@@ -55,6 +55,7 @@
 #define DBS_INPUT_EVENT_MIN_FREQ		(1026000)
 #define DBS_SYNC_FREQ				(702000)
 #define DBS_OPTIMAL_FREQ			(1296000)
+#define DEF_SUSPEND_FREQ                        (486000)
 
 u64 freq_boosted_time;
 /*
@@ -72,6 +73,7 @@ u64 freq_boosted_time;
 static unsigned int min_sampling_rate;
 #ifdef CONFIG_EARLYSUSPEND
 static unsigned long stored_sampling_rate;
+static unsigned int suspended = 0;
 #endif
 
 #define LATENCY_MULTIPLIER			(1000)
@@ -165,6 +167,7 @@ static struct dbs_tuners {
 	unsigned int freq_boost_time;
 	unsigned int boostfreq;
 	unsigned int two_phase_freq;
+	unsigned int suspend_freq;
 } dbs_tuners_ins = {
 	.up_threshold_multi_core = DEF_FREQUENCY_UP_THRESHOLD,
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -178,6 +181,7 @@ static struct dbs_tuners {
 	.optimal_freq = DBS_OPTIMAL_FREQ,
 	.freq_boost_time = DEFAULT_FREQ_BOOST_TIME,
 	.two_phase_freq = 0,
+	.suspend_freq = DEF_SUSPEND_FREQ,
 };
 
 static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
@@ -347,6 +351,7 @@ show_one(boostpulse, boosted);
 show_one(boosttime, freq_boost_time);
 show_one(boostfreq, boostfreq);
 show_one(two_phase_freq, two_phase_freq);
+show_one(suspend_freq, suspend_freq);
 
 #ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ 
 void set_lmf_browsing_state(bool onOff);
@@ -875,6 +880,29 @@ static ssize_t store_lmf_inactive_load(struct kobject *a, struct attribute *b,
 }
 #endif
 
+static ssize_t store_suspend_freq(struct kobject *a, struct attribute *b,
+				    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input > 1890000)
+		input = 1890000;
+
+	if (input < 192000)
+		input = 192000;
+
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.suspend_freq = input;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
@@ -890,6 +918,7 @@ define_one_global_rw(boostpulse);
 define_one_global_rw(boosttime);
 define_one_global_rw(boostfreq);
 define_one_global_rw(two_phase_freq);
+define_one_global_rw(suspend_freq);
 
 #ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ
 define_one_global_rw(lmf_browser);
@@ -916,6 +945,7 @@ static struct attribute *dbs_attributes[] = {
 	&boosttime.attr,
 	&boostfreq.attr,
 	&two_phase_freq.attr,
+	&suspend_freq.attr,
 #ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ
 	&lmf_browser.attr,
 	&lmf_active_max_freq.attr,
@@ -939,7 +969,10 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 		freq = powersave_bias_target(p, freq, CPUFREQ_RELATION_H);
 	else if (p->cur == p->max)
 		return;
-
+	if (suspended && freq > dbs_tuners_ins.suspend_freq) {
+	     freq = dbs_tuners_ins.suspend_freq;
+	     __cpufreq_driver_target(p, freq, CPUFREQ_RELATION_H);
+	} else
 	__cpufreq_driver_target(p, freq, dbs_tuners_ins.powersave_bias ?
 			CPUFREQ_RELATION_L : CPUFREQ_RELATION_H);
 }
@@ -1535,8 +1568,9 @@ static void do_dbs_timer(struct work_struct *work)
 				delay -= jiffies % delay;
 		}
 	} else {
-		__cpufreq_driver_target(dbs_info->cur_policy,
-			dbs_info->freq_lo, CPUFREQ_RELATION_H);
+		if (!suspended)
+			__cpufreq_driver_target(dbs_info->cur_policy,
+				dbs_info->freq_lo, CPUFREQ_RELATION_H);
 		delay = dbs_info->freq_lo_jiffies;
 	}
 	schedule_delayed_work_on(cpu, &dbs_info->work, delay);
@@ -1839,8 +1873,27 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 }
 
 #ifdef CONFIG_EARLYSUSPEND
+static void ondemandx_suspend(int suspend)
+{
+        struct cpu_dbs_info_s *dbs_info = &per_cpu(id_cpu_dbs_info, smp_processor_id());
+        if (dbs_enable==0) return;
+        if (!suspend) { // resume at max speed:
+                suspended = 0;
+                __cpufreq_driver_target(dbs_info->cur_policy, dbs_info->cur_policy->max, 
+			CPUFREQ_RELATION_L);
+                pr_info("Screen ON: Max freq set to %d\n", dbs_info->cur_policy->cur);
+        } else {
+                suspended = 1;
+		// let's give it a little breathing room
+                __cpufreq_driver_target(dbs_info->cur_policy, dbs_tuners_ins.suspend_freq, CPUFREQ_RELATION_H);
+                pr_info("Screen OFF: Max freq set to %d\n", dbs_info->cur_policy->cur);
+        }
+}
+
 static void cpufreq_intellidemand_early_suspend(struct early_suspend *h)
 {
+	ondemandx_suspend(1);
+	
 	mutex_lock(&dbs_mutex);
 	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
 	dbs_tuners_ins.sampling_rate = DEF_SAMPLING_RATE * 6;
@@ -1854,6 +1907,8 @@ static void cpufreq_intellidemand_late_resume(struct early_suspend *h)
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
 	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	mutex_unlock(&dbs_mutex);
+	
+	ondemandx_suspend(0);
 }
 
 static struct early_suspend cpufreq_intellidemand_early_suspend_info = {
