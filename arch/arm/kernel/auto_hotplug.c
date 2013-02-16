@@ -275,7 +275,8 @@ int __init auto_hotplug_init(void)
 	pr_info("auto_hotplug: v1.0\n");
 	pr_info("Author: _thalamus\n");
 	pr_info("Modified by: Francisco Franco\n");
-	pr_info("auto_hotplug: %d CPUs detected\n", 4);
+	pr_info("Modified by: InstigatorX for Dual Core\n");
+	pr_info("auto_hotplug: %d CPUs detected\n", CPUS_AVAILABLE);
 
 	INIT_WORK(&hotplug_online_all_work, hotplug_online_all_work_fn);
 	INIT_WORK(&hotplug_offline_all_work, hotplug_offline_all_work_fn);
