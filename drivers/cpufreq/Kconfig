@@ -218,6 +218,10 @@ config SEC_DVFS
 	default n
 	depends on CPU_FREQ
 
+config CPU_FREQ_GOV_SMARTASS2
+	tristate "SmartAssV2 cpufreq policy governor"
+        select CPU_FREQ_TABLE
+
 config CPU_FREQ_GOV_INTELLIDEMAND
         tristate "'intellidemand' cpufreq policy governor"
         select CPU_FREQ_TABLE
