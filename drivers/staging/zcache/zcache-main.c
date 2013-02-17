@@ -31,7 +31,6 @@
 #include <linux/math64.h>
 #include <linux/crypto.h>
 #include <linux/string.h>
-#include <linux/idr.h>
 #include "tmem.h"
 
 #include "../zram/xvmalloc.h" /* if built in drivers/staging */
@@ -54,13 +53,15 @@
 	(__GFP_FS | __GFP_NORETRY | __GFP_NOWARN | __GFP_NOMEMALLOC)
 #endif
 
+#define MAX_POOLS_PER_CLIENT 16
+
 #define MAX_CLIENTS 16
 #define LOCAL_CLIENT ((uint16_t)-1)
 
 MODULE_LICENSE("GPL");
 
 struct zcache_client {
-	struct idr tmem_pools;
+	struct tmem_pool *tmem_pools[MAX_POOLS_PER_CLIENT];
 	struct xv_pool *xvpool;
 	bool allocated;
 	atomic_t refcount;
@@ -947,9 +948,11 @@ static struct tmem_pool *zcache_get_pool_by_id(uint16_t cli_id, uint16_t poolid)
 			goto out;
 		atomic_inc(&cli->refcount);
 	}
-	pool = idr_find(&cli->tmem_pools, poolid);
-	if (pool != NULL)
-		atomic_inc(&pool->refcount);
+	if (poolid < MAX_POOLS_PER_CLIENT) {
+		pool = cli->tmem_pools[poolid];
+		if (pool != NULL)
+			atomic_inc(&pool->refcount);
+	}
 out:
 	return pool;
 }
@@ -983,7 +986,6 @@ int zcache_new_client(uint16_t cli_id)
 	cli->xvpool = xv_create_pool();
 	if (cli->xvpool == NULL)
 		goto out;
-	idr_init(&cli->tmem_pools);
 #endif
 	ret = 0;
 out:
@@ -1670,10 +1672,10 @@ static int zcache_destroy_pool(int cli_id, int pool_id)
 	if (cli == NULL)
 		goto out;
 	atomic_inc(&cli->refcount);
-	pool = idr_find(&cli->tmem_pools, pool_id);
+	pool = cli->tmem_pools[pool_id];
 	if (pool == NULL)
 		goto out;
-	idr_remove(&cli->tmem_pools, pool_id);
+	cli->tmem_pools[pool_id] = NULL;
 	/* wait for pool activity on other cpus to quiesce */
 	while (atomic_read(&pool->refcount) != 0)
 		;
@@ -1693,7 +1695,6 @@ static int zcache_new_pool(uint16_t cli_id, uint32_t flags)
 	int poolid = -1;
 	struct tmem_pool *pool;
 	struct zcache_client *cli = NULL;
-	int r;
 
 	if (cli_id == LOCAL_CLIENT)
 		cli = &zcache_host;
@@ -1708,29 +1709,20 @@ static int zcache_new_pool(uint16_t cli_id, uint32_t flags)
 		goto out;
 	}
 
-retry:
-	r = idr_pre_get(&cli->tmem_pools, GFP_ATOMIC);
-	if (r != 1) {
+	for (poolid = 0; poolid < MAX_POOLS_PER_CLIENT; poolid++)
+		if (cli->tmem_pools[poolid] == NULL)
+			break;
+	if (poolid >= MAX_POOLS_PER_CLIENT) {
+		pr_info("zcache: pool creation failed: max exceeded\n");
 		kfree(pool);
-		pr_info("zcache: pool creation failed: out of memory\n");
+		poolid = -1;
 		goto out;
 	}
-	r = idr_get_new(&cli->tmem_pools, pool, &poolid);
-	switch (r) {
-	case 0:
-		break;
-	case -EAGAIN:
-		goto retry;
-	default:
-		pr_info("zcache: pool creation failed: error %d\n", r);
-		kfree(pool);
-		goto out;
-	}
-
 	atomic_set(&pool->refcount, 0);
 	pool->client = cli;
 	pool->pool_id = poolid;
 	tmem_new_pool(pool, flags);
+	cli->tmem_pools[poolid] = pool;
 	pr_info("zcache: created %s tmem pool, id=%d, client=%d\n",
 		flags & TMEM_POOL_PERSIST ? "persistent" : "ephemeral",
 		poolid, cli_id);
