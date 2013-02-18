@@ -399,12 +399,12 @@ static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
 		}
 	}
 
-#ifdef CONFIG_SEC_DVFS_DUAL
-	if (freq_min_limit >= MAX_FREQ_LIMIT)
-		dual_boost(1);
-	else
-		dual_boost(0);
-#endif
+//#ifdef CONFIG_SEC_DVFS_DUAL
+//	if (freq_min_limit >= MAX_FREQ_LIMIT)
+//		dual_boost(1);
+//	else
+//		dual_boost(0);
+//#endif
 
 	return n;
 }
