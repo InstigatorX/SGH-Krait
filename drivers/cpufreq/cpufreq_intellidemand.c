@@ -1873,7 +1873,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 }
 
 #ifdef CONFIG_EARLYSUSPEND
-static void ondemandx_suspend(int suspend)
+static void id_suspend(int suspend)
 {
         struct cpu_dbs_info_s *dbs_info = &per_cpu(id_cpu_dbs_info, smp_processor_id());
         if (dbs_enable==0) return;
@@ -1892,7 +1892,7 @@ static void ondemandx_suspend(int suspend)
 
 static void cpufreq_intellidemand_early_suspend(struct early_suspend *h)
 {
-	ondemandx_suspend(1);
+	id_suspend(1);
 	
 	mutex_lock(&dbs_mutex);
 	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
@@ -1908,7 +1908,7 @@ static void cpufreq_intellidemand_late_resume(struct early_suspend *h)
 	update_sampling_rate(dbs_tuners_ins.sampling_rate);
 	mutex_unlock(&dbs_mutex);
 	
-	ondemandx_suspend(0);
+	id_suspend(0);
 }
 
 static struct early_suspend cpufreq_intellidemand_early_suspend_info = {
