@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/smd_tty.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -37,6 +37,7 @@
 
 #define MAX_SMD_TTYS 37
 #define MAX_TTY_BUF_SIZE 2048
+#define MAX_RA_WAKE_LOCK_NAME_LEN 32
 
 static DEFINE_MUTEX(smd_tty_lock);
 
@@ -59,6 +60,9 @@ struct smd_tty_info {
 	int is_open;
 	wait_queue_head_t ch_opened_wait_queue;
 	spinlock_t reset_lock;
+	spinlock_t ra_lock;		/* Read Available Lock*/
+	char ra_wake_lock_name[MAX_RA_WAKE_LOCK_NAME_LEN];
+	struct wake_lock ra_wake_lock;	/* Read Available Wakelock */
 	struct smd_config *smd;
 };
 
@@ -83,6 +87,8 @@ static struct smd_config smd_configs[] = {
 	{2, "APPS_RIVA_BT_ACL", NULL, SMD_APPS_WCNSS},
 	{3, "APPS_RIVA_BT_CMD", NULL, SMD_APPS_WCNSS},
 	{4, "MBALBRIDGE", NULL, SMD_APPS_MODEM},
+	{5, "APPS_RIVA_ANT_CMD", NULL, SMD_APPS_WCNSS},
+	{6, "APPS_RIVA_ANT_DATA", NULL, SMD_APPS_WCNSS},
 	{7, "DATA1", NULL, SMD_APPS_MODEM},
 	{11, "DATA11", NULL, SMD_APPS_MODEM},
 	{21, "DATA21", NULL, SMD_APPS_MODEM},
@@ -120,6 +126,7 @@ static void smd_tty_read(unsigned long param)
 	int avail;
 	struct smd_tty_info *info = (struct smd_tty_info *)param;
 	struct tty_struct *tty = info->tty;
+	unsigned long flags;
 
 	if (!tty)
 		return;
@@ -133,23 +140,22 @@ static void smd_tty_read(unsigned long param)
 		}
 
 		if (test_bit(TTY_THROTTLED, &tty->flags)) break;
+		spin_lock_irqsave(&info->ra_lock, flags);
 		avail = smd_read_avail(info->ch);
-		if (avail == 0)
+		if (avail == 0) {
+			wake_unlock(&info->ra_wake_lock);
+			spin_unlock_irqrestore(&info->ra_lock, flags);
 			break;
+		}
+		spin_unlock_irqrestore(&info->ra_lock, flags);
 
 		if (avail > MAX_TTY_BUF_SIZE)
 			avail = MAX_TTY_BUF_SIZE;
 
 		avail = tty_prepare_flip_string(tty, &ptr, avail);
 		if (avail <= 0) {
-			if (!timer_pending(&info->buf_req_timer)) {
-				init_timer(&info->buf_req_timer);
-				info->buf_req_timer.expires = jiffies +
-							((30 * HZ)/1000);
-				info->buf_req_timer.function = buf_req_retry;
-				info->buf_req_timer.data = param;
-				add_timer(&info->buf_req_timer);
-			}
+			mod_timer(&info->buf_req_timer,
+				jiffies + msecs_to_jiffies(30));
 			return;
 		}
 
@@ -192,7 +198,12 @@ static void smd_tty_notify(void *priv, unsigned event)
 			if (info->tty)
 				wake_up_interruptible(&info->tty->write_wait);
 		}
-		tasklet_hi_schedule(&info->tty_tsklt);
+		spin_lock_irqsave(&info->ra_lock, flags);
+		if (smd_read_avail(info->ch)) {
+			wake_lock(&info->ra_wake_lock);
+			tasklet_hi_schedule(&info->tty_tsklt);
+		}
+		spin_unlock_irqrestore(&info->ra_lock, flags);
 		break;
 
 	case SMD_EVENT_OPEN:
@@ -303,6 +314,11 @@ static int smd_tty_open(struct tty_struct *tty, struct file *f)
 			     (unsigned long)info);
 		wake_lock_init(&info->wake_lock, WAKE_LOCK_SUSPEND,
 				smd_tty[n].smd->port_name);
+		scnprintf(info->ra_wake_lock_name,
+			  MAX_RA_WAKE_LOCK_NAME_LEN,
+			  "SMD_TTY_%s_RA", smd_tty[n].smd->port_name);
+		wake_lock_init(&info->ra_wake_lock, WAKE_LOCK_SUSPEND,
+				info->ra_wake_lock_name);
 		if (!info->ch) {
 			res = smd_named_open_on_edge(smd_tty[n].smd->port_name,
 							smd_tty[n].smd->edge,
@@ -356,6 +372,7 @@ static void smd_tty_close(struct tty_struct *tty, struct file *f)
 		if (info->tty) {
 			tasklet_kill(&info->tty_tsklt);
 			wake_lock_destroy(&info->wake_lock);
+			wake_lock_destroy(&info->ra_wake_lock);
 			info->tty = 0;
 		}
 		tty->driver_data = 0;
@@ -489,7 +506,8 @@ static int smd_tty_dummy_probe(struct platform_device *pdev)
 		if (!smd_configs[n].dev_name)
 			continue;
 
-		if (!strncmp(pdev->name, smd_configs[n].dev_name,
+		if (pdev->id == smd_configs[n].edge &&
+			!strncmp(pdev->name, smd_configs[n].dev_name,
 					SMD_MAX_CH_NAME_LEN)) {
 			complete_all(&smd_tty[idx].ch_allocated);
 			return 0;
@@ -562,11 +580,7 @@ static int __init smd_tty_init(void)
 				continue;
 		}
 
-		ret = tty_register_device(smd_tty_driver, idx, 0);
-		if (IS_ERR(ret)) {
-			pr_err("%s: init failed %d (%d)\n", __func__, idx, ret);
-			goto out;
-		}
+		tty_register_device(smd_tty_driver, idx, 0);
 		init_completion(&smd_tty[idx].ch_allocated);
 
 		/* register platform device */
@@ -574,7 +588,10 @@ static int __init smd_tty_init(void)
 		smd_tty[idx].driver.driver.name = smd_configs[n].dev_name;
 		smd_tty[idx].driver.driver.owner = THIS_MODULE;
 		spin_lock_init(&smd_tty[idx].reset_lock);
+		spin_lock_init(&smd_tty[idx].ra_lock);
 		smd_tty[idx].is_open = 0;
+		setup_timer(&smd_tty[idx].buf_req_timer, buf_req_retry,
+						(unsigned long)&smd_tty[idx]);
 		init_waitqueue_head(&smd_tty[idx].ch_opened_wait_queue);
 		ret = platform_driver_register(&smd_tty[idx].driver);
 
