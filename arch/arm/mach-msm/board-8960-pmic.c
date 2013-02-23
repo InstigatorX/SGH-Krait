@@ -461,8 +461,7 @@ static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 #endif /* CONFIG_PM8921_SEC_CHARGER */
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
-	.resume_voltage_delta   = 60,
-	.resume_charge_percent  = 99,	
+	.resume_voltage_delta	= 100,
 	.term_current		= 100,
 	.temp_check_period	= 1,
 	.max_bat_chg_current	= 1100,
@@ -472,7 +471,6 @@ static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.warm_bat_voltage	= 4100,
 	.thermal_mitigation	= pm8921_therm_mitigation,
 	.thermal_levels		= ARRAY_SIZE(pm8921_therm_mitigation),
-	.rconn_mohm             = 18,
 };
 
 static struct pm8xxx_misc_platform_data pm8xxx_misc_pdata = {
