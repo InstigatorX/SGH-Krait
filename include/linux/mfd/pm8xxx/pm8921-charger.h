@@ -61,6 +61,9 @@ enum pm8921_usb_debounce_time {
  *			system operates at
  * @resume_voltage_delta:	the (mV) drop to wait for before resume charging
  *				after the battery has been fully charged
+ * @resume_charge_percent:	the % SOC the charger will drop to after the
+ *				battery is fully charged before resuming
+ *				charging.
  * @term_current:	the charger current (mA) at which EOC happens
  * @cool_temp:		the temperature (degC) at which the battery is
  *			considered cool charging current and voltage is reduced.
@@ -100,6 +103,10 @@ enum pm8921_usb_debounce_time {
  *			VBAT_THERM goes below 35% of VREF_THERM, if low the
  *			battery will be considered hot when VBAT_THERM goes
  *			below 25% of VREF_THERM. Hardware defaults to low.
+ * @rconn_mohm:                resistance in milliOhm from the vbat sense to ground
+ *                     with the battery terminals shorted. This indicates
+ *                     resistance of the pads, connectors, battery terminals
+ *                     and rsense.
  */
 struct pm8921_charger_platform_data {
 	struct pm8xxx_charger_core_data	charger_cdata;
@@ -109,6 +116,7 @@ struct pm8921_charger_platform_data {
 	unsigned int			max_voltage;
 	unsigned int			min_voltage;
 	unsigned int			resume_voltage_delta;
+	int				resume_charge_percent;
 	unsigned int			term_current;
 	int				cool_temp;
 	int				warm_temp;
@@ -134,6 +142,13 @@ struct pm8921_charger_platform_data {
 #ifdef CONFIG_PM8921_SEC_CHARGER
 	int		(*get_cable_type)(void);
 #endif
+	int                             rconn_mohm;
+	int                             eoc_check_soc;
+       int                             btc_override;
+       int                             btc_override_cold_degc;
+       int                             btc_override_hot_degc;
+       int                             btc_delay_ms;
+       int                             btc_panic_if_cant_stop_chg;
 };
 
 enum pm8921_charger_source {
@@ -146,15 +161,6 @@ enum pm8921_charger_source {
 void pm8921_charger_vbus_draw(unsigned int mA);
 int pm8921_charger_register_vbus_sn(void (*callback)(int));
 void pm8921_charger_unregister_vbus_sn(void (*callback)(int));
-/**
- * pm8921_charger_enable -
- *
- * @enable: 1 means enable charging, 0 means disable
- *
- * Enable/Disable battery charging current, the device will still draw current
- * from the charging source
- */
-int pm8921_charger_enable(bool enable);
 
 /**
  * pm8921_is_usb_chg_plugged_in - is usb plugged in
@@ -262,6 +268,8 @@ int pm8921_usb_ovp_set_hystersis(enum pm8921_usb_debounce_time ms);
  *
  */
 int pm8921_usb_ovp_disable(int disable);
+int pm8921_get_batt_state(void);
+int pm8921_force_start_charging(void);
 #else
 static inline void pm8921_charger_vbus_draw(unsigned int mA)
 {
@@ -272,10 +280,6 @@ static inline int pm8921_charger_register_vbus_sn(void (*callback)(int))
 }
 static inline void pm8921_charger_unregister_vbus_sn(void (*callback)(int))
 {
-}
-static inline int pm8921_charger_enable(bool enable)
-{
-	return -ENXIO;
 }
 static inline int pm8921_is_usb_chg_plugged_in(void)
 {
