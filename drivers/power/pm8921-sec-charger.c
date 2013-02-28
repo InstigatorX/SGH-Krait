@@ -244,7 +244,7 @@ struct pm8921_chg_chip {
 	unsigned int			is_bat_cool;
 	unsigned int			is_bat_warm;
 	unsigned int			resume_voltage_delta;
-	int				resume_charge_percent;
+	int				resume_charge_percent;	
 	unsigned int			term_current;
 	unsigned int			vbat_channel;
 	unsigned int			batt_temp_channel;
@@ -272,6 +272,7 @@ struct pm8921_chg_chip {
 	struct delayed_work		eoc_work;
 	struct work_struct		unplug_ovp_fet_open_work;
 	struct delayed_work		unplug_check_work;
+	int						recent_reported_soc;
 	struct delayed_work     btc_override_work;
 	struct wake_lock		eoc_wake_lock;
 	enum pm8921_chg_cold_thr	cold_thr;
@@ -577,6 +578,7 @@ static int pm_chg_charge_dis(struct pm8921_chg_chip *chip, int disable)
 				disable ? CHG_CHARGE_DIS_BIT : 0);
 }
 
+#ifdef QUALCOMM_POWERSUPPLY_PROPERTY
 static bool pm_is_chg_charge_dis_bit_set(struct pm8921_chg_chip *chip)
 {
 	u8 temp = 0;
@@ -588,6 +590,7 @@ static bool pm_is_chg_charge_dis_bit_set(struct pm8921_chg_chip *chip)
 
 	return !!(temp & CHG_CHARGE_DIS_BIT);
 }
+#endif
 
 #define PM8921_CHG_V_MIN_MV	3240
 #define PM8921_CHG_V_STEP_MV	20
@@ -959,6 +962,7 @@ static int pm_chg_iweak_set(struct pm8921_chg_chip *chip, int milliamps)
 					 temp);
 }
 
+#ifdef QUALCOMM_POWERSUPPLY_PROPERTY
 #define PM8921_CHG_BATT_TEMP_THR_COLD	BIT(1)
 #define PM8921_CHG_BATT_TEMP_THR_COLD_SHIFT	1
 static int pm_chg_batt_cold_temp_config(struct pm8921_chg_chip *chip,
@@ -986,6 +990,7 @@ static int pm_chg_batt_hot_temp_config(struct pm8921_chg_chip *chip,
 					PM8921_CHG_BATT_TEMP_THR_HOT,
 					 temp);
 }
+#endif
 
 static void disable_input_voltage_regulation(struct pm8921_chg_chip *chip)
 {
@@ -1321,6 +1326,11 @@ static unsigned int voltage_based_capacity(struct pm8921_chg_chip *chip)
 		    / (high_voltage - low_voltage);
 }
 
+static int get_prop_batt_present(struct pm8921_chg_chip *chip)
+{
+	return pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ);
+}
+
 static int get_prop_batt_status(struct pm8921_chg_chip *chip)
 {
 	int batt_state = POWER_SUPPLY_STATUS_DISCHARGING;
@@ -1389,10 +1399,12 @@ static int get_prop_batt_capacity(struct pm8921_chg_chip *chip)
 static int get_prop_batt_current(struct pm8921_chg_chip *chip)
 {
 	int result_ua, rc;
+#if defined(CONFIG_PM8XXX_CCADC) && !defined(CONFIG_PM8921_BMS) 
 	int data[AVG_CNT+2];
 	int min[2] = {0, 0};
 	int max[2] = {0, 0};
 	int i, sum = 0;
+#endif
 
 #if defined(CONFIG_PM8921_BMS)
 	rc = pm8921_bms_get_battery_current(&result_ua);
@@ -1472,11 +1484,6 @@ static int get_prop_batt_health(struct pm8921_chg_chip *chip)
 		return POWER_SUPPLY_HEALTH_COLD;
 
 	return POWER_SUPPLY_HEALTH_GOOD;
-}
-
-static int get_prop_batt_present(struct pm8921_chg_chip *chip)
-{
-	return pm_chg_get_rt_status(chip, BATT_INSERTED_IRQ);
 }
 
 static int get_prop_charge_type(struct pm8921_chg_chip *chip)
@@ -2248,6 +2255,8 @@ static irqreturn_t batt_inserted_irq_handler(int irq, void *data)
  * if DC is removed and then inserted after the battery was in use.
  * Therefore the handle_start_ext_chg() is not called.
  */
+#if !defined(CONFIG_BATTERY_MAX17040) && \
+	!defined(CONFIG_BATTERY_MAX17042)
 static irqreturn_t vbatdet_low_irq_handler(int irq, void *data)
 {
 	struct pm8921_chg_chip *chip = data;
@@ -2272,6 +2281,7 @@ static irqreturn_t vbatdet_low_irq_handler(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+#endif
 
 static irqreturn_t usbin_uv_irq_handler(int irq, void *data)
 {
@@ -3402,6 +3412,9 @@ static void __devinit determine_initial_state(struct pm8921_chg_chip *chip)
 {
 	unsigned long flags;
 	int is_fast_chg;
+#ifdef CONFIG_PM8921_BMS
+	int fsm_state;
+#endif
 
 	chip->dc_present = !!is_dc_chg_plugged_in(chip);
 	chip->usb_present = !!is_usb_chg_plugged_in(chip);
@@ -3446,7 +3459,6 @@ static void __devinit determine_initial_state(struct pm8921_chg_chip *chip)
 		fastchg_irq_handler(chip->pmic_chg_irq[FASTCHG_IRQ], chip);
 
 #ifdef CONFIG_PM8921_BMS
-	int fsm_state;
 	fsm_state = pm_chg_get_fsm_state(chip);
 	pr_info("fsm_state=%d\n", fsm_state);
 	if (is_battery_charging(fsm_state)) {
@@ -4350,7 +4362,6 @@ static int pm8921_charger_resume(struct device *dev)
 
 static int pm8921_charger_suspend(struct device *dev)
 {
-	int rc;
 	struct pm8921_chg_chip *chip = dev_get_drvdata(dev);
 
 	if (chip->btc_override)
@@ -4360,6 +4371,7 @@ static int pm8921_charger_suspend(struct device *dev)
 		pm8921_chg_enable_irq(chip, LOOP_CHANGE_IRQ);
 		enable_irq_wake(chip->pmic_chg_irq[LOOP_CHANGE_IRQ]);
 	}
+
 	return 0;
 }
 
