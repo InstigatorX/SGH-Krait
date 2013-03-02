@@ -89,6 +89,10 @@ int sampling_rate_boosted;
 u64 sampling_rate_boosted_time;
 unsigned int current_sampling_rate;
 
+#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
+static unsigned int saved_policy_min;
+#endif
+
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event);
@@ -973,6 +977,7 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 	     freq = dbs_tuners_ins.suspend_freq;
 	     __cpufreq_driver_target(p, freq, CPUFREQ_RELATION_H);
 	} else
+
 	__cpufreq_driver_target(p, freq, dbs_tuners_ins.powersave_bias ?
 			CPUFREQ_RELATION_L : CPUFREQ_RELATION_H);
 }
@@ -1342,14 +1347,19 @@ static void do_dbs_timer(struct work_struct *work)
 	int sample_type = dbs_info->sample_type;
 
 	int delay;
+#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
+	struct cpufreq_policy *policy;
 
-	if (num_online_cpus() == 2 && rq_info.rq_avg > 50)
+	policy = dbs_info->cur_policy;
+#endif
+
+	if (num_online_cpus() == 2 && rq_info.rq_avg > 38)
 		rq_persist_count++;
 	else
 		if (rq_persist_count > 0)
 			rq_persist_count--;
 
-	if (rq_persist_count > 10) {
+	if (rq_persist_count > 3) {
 		lmf_browsing_state = false;
 		rq_persist_count = 0;
 	}
@@ -1364,7 +1374,7 @@ static void do_dbs_timer(struct work_struct *work)
 		{
 			if (lmf_old_state == true)
 			{
-				//pr_warn("LMF: disabled!\n");
+				pr_warn("LMF: disabled!\n");
 				lmf_old_state = false;
 			}
 
@@ -1413,7 +1423,7 @@ static void do_dbs_timer(struct work_struct *work)
 		{
 			if (lmf_old_state == false)
 			{
-				//pr_warn("LMF: enabled!\n");
+				pr_warn("LMF: enabled!\n");
 				lmf_old_state = true;
 			}
 
@@ -1645,15 +1655,15 @@ static void dbs_refresh_callback(struct work_struct *work)
 	}
 
 	if (policy->cur < DBS_INPUT_EVENT_MIN_FREQ) {
-		//pr_info("%s: set cpufreq to DBS_INPUT_EVENT_MIN_FREQ(%d)	
-        //  directly due to input events!\n", __func__, DBS_INPUT_EVENT_MIN_FREQ);
+		 //pr_info("%s: set cpufreq to DBS_INPUT_EVENT_MIN_FREQ(%d)
+		 //	directly due to input events!\n", __func__, DBS_INPUT_EVENT_MIN_FREQ);
 		/*
-	     * Arch specific cpufreq driver may fail.
-         * Don't update governor frequency upon failure.
-         */
+		 * Arch specific cpufreq driver may fail.
+		 * Don't update governor frequency upon failure.
+		 */
 		if (__cpufreq_driver_target(policy, DBS_INPUT_EVENT_MIN_FREQ,
-		      CPUFREQ_RELATION_L) >= 0);
-		  policy->cur = DBS_INPUT_EVENT_MIN_FREQ;
+					CPUFREQ_RELATION_L) >= 0);
+			policy->cur = DBS_INPUT_EVENT_MIN_FREQ;
 		this_dbs_info->prev_cpu_idle = get_cpu_idle_time(cpu,
 				&this_dbs_info->prev_cpu_wall);
 	}
