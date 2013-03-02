@@ -80,3 +80,5 @@ GTAGS
 *~
 \#*#
 !boot.img-ramdisk.gz
+
+/build_dir/Boot-CM10.1/boot.img-ramdisk.gz
