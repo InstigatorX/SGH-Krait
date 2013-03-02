@@ -22,6 +22,11 @@ cp drivers/net/wireless/btlock/btlock.ko build_dir/Boot-CM10.1/realsystem/lib/mo
 cp drivers/scsi/scsi_wait_scan.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 cp drivers/spi/spidev.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 
+cd ramdisk/initramfs
+find . | cpio -o -H newc | gzip > ../../build_dir/Boot-CM10.1/boot.img-ramdisk.gz 
+
+cd ../..
+
 cp arch/arm/boot/zImage build_dir/Boot-CM10.1
 
 cd build_dir/Boot-CM10.1
