@@ -24,6 +24,7 @@
 #include <linux/percpu.h>
 #include <linux/clockchips.h>
 #include <linux/completion.h>
+#include "../mach-msm/pm.h"
 
 #include <linux/atomic.h>
 #include <asm/smp.h>
@@ -146,6 +147,11 @@ static void percpu_timer_stop(void);
 
 static int platform_cpu_kill(unsigned int cpu)
 {
+	int ret;
+
+	ret = msm_pm_wait_cpu_shutdown(cpu);
+	if (ret)
+		return 0;
 	if (smp_ops.cpu_kill)
 		return smp_ops.cpu_kill(cpu);
 	return 1;
