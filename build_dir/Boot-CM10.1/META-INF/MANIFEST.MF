@@ -1,0 +1,93 @@
+Manifest-Version: 1.0
+Created-By: 1.0 (Android SignApk)
+
+Name: mkbootfs
+SHA1-Digest: 9MDUFb+jAeTbSTgkODIldjkI4is=
+
+Name: realsystem/lib/modules/qce.ko
+SHA1-Digest: usMeQrxHXfjby/hxJjElZ/zE2Hw=
+
+Name: realsystem/lib/modules/sch_dsmark.ko
+SHA1-Digest: bKf0lSsXL1ZrclkLFMEXtb3Fdyo=
+
+Name: realsystem/lib/modules/lcd.ko
+SHA1-Digest: g/8ILbEoNqX2wtWs+rAk2y0OHcM=
+
+Name: realsystem/lib/modules/qcrypto.ko
+SHA1-Digest: vDNJ8qws8Oz9NUqp0fSjQtsox5A=
+
+Name: realsystem/lib/modules/mmc_test.ko
+SHA1-Digest: vtHuC7ZTNKjMSmuXMGANniGepDY=
+
+Name: realsystem/lib/modules/scsi_wait_scan.ko
+SHA1-Digest: ivWfql4s2qwPd+j8GBN0tvi9wis=
+
+Name: LICENSE
+SHA1-Digest: eLWZyDyl2ah14GMJK+dwdsquQq4=
+
+Name: realsystem/lib/modules/evbug.ko
+SHA1-Digest: 112f4X/N3xN2k+LSIl5edswiRxo=
+
+Name: META-INF/com/google/android/updater-script
+SHA1-Digest: Q0u8hIbjxEsEoZY/OXukO4aYVeE=
+
+Name: unpackbootimg
+SHA1-Digest: 1EeVRq/LzvQ5okbudJGxR2cd2pE=
+
+Name: realsystem/lib/modules/dma_test.ko
+SHA1-Digest: YQ6BPLpqCiDnmzJYwIW97DdXyY8=
+
+Name: mkbootimg
+SHA1-Digest: kACXUsPflIl2Ush2XuvScGb67uY=
+
+Name: NOTICE
+SHA1-Digest: zYQ8yU/7zTBjof8ByH8OoLLk9Cc=
+
+Name: realsystem/lib/modules/dal_remotetest.ko
+SHA1-Digest: lm+g/3vNXGMnfLXdfJQWyHZJu1c=
+
+Name: system/build.prop
+SHA1-Digest: TF5BuiBEKzDnJPcnk9Q9UwuoWsE=
+
+Name: realsystem/lib/modules/cls_flow.ko
+SHA1-Digest: SxVq59XxZukDgn8512VwdzP1v8A=
+
+Name: realsystem/lib/modules/msm_tsif.ko
+SHA1-Digest: aL9KO3LLG+1E0dz8fm9LXWsVBqc=
+
+Name: realsystem/lib/modules/spidev.ko
+SHA1-Digest: M2FZPmxtm2WAQhyRpiRVwMv2fTg=
+
+Name: realsystem/lib/modules/dhd.ko
+SHA1-Digest: GLl4sI//2bS9qXD1Dnrb5Ud5FzM=
+
+Name: realsystem/lib/modules/qcedev.ko
+SHA1-Digest: 7F3a3bltbkjI5LzBRvbEksRdwVY=
+
+Name: realsystem/lib/modules/vibrator.ko
+SHA1-Digest: vOF0nD4jhn4pfD8j7JHNOZ39nnc=
+
+Name: realsystem/lib/modules/ksapi.ko
+SHA1-Digest: RogdrnRWm9q1zxk2Vno6IdMDV5A=
+
+Name: META-INF/com/google/android/update-binary
+SHA1-Digest: J0yMENYxXqL7jnDqa+t5kfBC9ak=
+
+Name: realsystem/lib/hw/lights.msm8660.so
+SHA1-Digest: qdg6fAfNGqh6TfCW2Z+GSNzutxM=
+
+Name: realsystem/lib/modules/gspca_main.ko
+SHA1-Digest: sBK7HtFU31D6Rdz994+rh7Vu8kQ=
+
+Name: realsystem/lib/modules/ansi_cprng.ko
+SHA1-Digest: I39oP+dTL+BNF+ydocD+rlz/bEg=
+
+Name: zImage
+SHA1-Digest: rZh+6nJsD9UpZA1is/U0fh5ucpI=
+
+Name: realsystem/lib/modules/msm-buspm-dev.ko
+SHA1-Digest: qox21tv6vfeXC+tix0WzokgnEFI=
+
+Name: realsystem/lib/modules/tsif_chrdev.ko
+SHA1-Digest: uFacTXXR9Ao3m9sGD7JhntpeBdM=
+
