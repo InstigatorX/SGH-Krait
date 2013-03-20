@@ -144,6 +144,7 @@ static struct acpu_level acpu_freq_tbl_slow[] __initdata = {
 };
 
 static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
+	{ 1, {   192000, PLL_8, 0, 0x00 }, L2(0),   850000, AVS(0x40007F) },
 	{ 1, {   384000, PLL_8, 0, 0x00 }, L2(0),   900000, AVS(0x40007F) },
 	{ 0, {   432000, HFPLL, 2, 0x20 }, L2(6),   925000 },
 	{ 1, {   486000, HFPLL, 2, 0x24 }, L2(6),   925000 },
@@ -166,10 +167,12 @@ static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
 	{ 0, {  1404000, HFPLL, 1, 0x34 }, L2(18), 1187500, AVS(0x400015) },
 	{ 1, {  1458000, HFPLL, 1, 0x36 }, L2(18), 1187500, AVS(0x100018) },
 	{ 1, {  1512000, HFPLL, 1, 0x38 }, L2(18), 1200000, AVS(0x400012) },
+	{ 1, {  1620000, HFPLL, 1, 0x38 }, L2(18), 1200000, AVS(0x400012) },
 	{ 0, { 0 } }
 };
 
 static struct acpu_level acpu_freq_tbl_fast[] __initdata = {
+	{ 1, {   192000, PLL_8, 0, 0x00 }, L2(0),   825000, AVS(0x4000FF) },
 	{ 1, {   384000, PLL_8, 0, 0x00 }, L2(0),   850000, AVS(0x4000FF) },
 	{ 0, {   432000, HFPLL, 2, 0x20 }, L2(6),   875000 },
 	{ 1, {   486000, HFPLL, 2, 0x24 }, L2(6),   875000 },
@@ -192,6 +195,7 @@ static struct acpu_level acpu_freq_tbl_fast[] __initdata = {
 	{ 0, {  1404000, HFPLL, 1, 0x34 }, L2(18), 1137500, AVS(0x400012) },
 	{ 1, {  1458000, HFPLL, 1, 0x36 }, L2(18), 1137500, AVS(0x400012) },
 	{ 1, {  1512000, HFPLL, 1, 0x38 }, L2(18), 1150000, AVS(0x400012) },
+	{ 1, {  1620000, HFPLL, 1, 0x38 }, L2(18), 1200000, AVS(0x400012) },
 	{ 0, { 0 } }
 };
 
