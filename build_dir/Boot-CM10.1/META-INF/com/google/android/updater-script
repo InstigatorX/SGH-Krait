@@ -23,56 +23,11 @@ ui_print("Setting up tools...");
 
 run_program("/sbin/sleep", "1");
 
-assert(
-    package_extract_file("unpackbootimg", "/tmp/unpackbootimg"),
-    package_extract_file("mkbootimg", "/tmp/mkbootimg"),
-    package_extract_file("zImage", "/tmp/zImage"),
-    package_extract_file("boot.img-ramdisk.gz", "/tmp/boot.img-ramdisk.gz")
-);
-
-set_perm(0, 0, 0755, "/tmp/unpackbootimg");
-set_perm(0, 0, 0755, "/tmp/mkbootimg");
-
-ui_print("Extracting boot partition...");
-
-run_program("/sbin/sleep", "1");
-
-#assert(
-#    run_program("/sbin/dd",
-#        "if=/dev/block/mmcblk0p7",
-#        "of=/tmp/boot.img"
-#    ),
-#    run_program("/sbin/sleep", "1"),
-#    run_program("/tmp/unpackbootimg",
-#        "--output","/tmp",
-#        "--input","/tmp/boot.img"
-#    )
-#);
-
-ui_print("Rebuilding boot image...");
-
-run_program("/sbin/sleep", "1");
-
-assert(
-    run_program("/tmp/mkbootimg",
-        "--kernel","/tmp/zImage",
-        "--cmdline","androidboot.hardware=qcom user_debug=31 zcache",
-        "--base","0x80200000",
-        "--pagesize","2048",
-        "--ramdiskaddr","0x81500000",
-        "--ramdisk","/tmp/boot.img-ramdisk.gz",
-        "-o","/tmp/new_boot.img"
-    )
-);
-
 ui_print("Flashing new boot image...");
 
 run_program("/sbin/sleep", "1");
 
-assert(
-    run_program("/system/bin/ls","/tmp/new_boot.img"),
-    write_raw_image("/tmp/new_boot.img", "/dev/block/mmcblk0p7")
-);
+package_extract_file("boot.img", "/dev/block/mmcblk0p7");
 
 ui_print("Updating kernel modules...");
 
