@@ -239,19 +239,6 @@ void set_esd_disable(void)
 	}
 }
 
-static void mipi_samsung_esd_early_suspend(struct early_suspend *h)
-{
-	pr_info("Early Suspend:ESD IRQ is disabled\n");
-	disable_irq(esd_enable->pdata->esd_gpio_irq);
-}
-
-static void mipi_samsung_esd_late_resume(struct early_suspend *h)
-{
-	pr_info("Late Resume:ESD IRQ is enabled\n");
-	enable_irq(esd_enable->pdata->esd_gpio_irq);
-
-}
-
 static int __devinit mipi_esd_refresh_probe(struct platform_device *pdev)
 {
 	struct esd_data_t *p_esd_data;
