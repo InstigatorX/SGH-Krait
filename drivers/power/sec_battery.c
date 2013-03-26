@@ -2509,6 +2509,17 @@ static int sec_bat_read_proc(char *buf, char **start,
 	return len;
 }
 
+static void sec_bat_early_suspend(struct early_suspend *handle)
+{
+	struct sec_bat_info *info = container_of(handle, struct sec_bat_info,
+						 bat_early_suspend);
+
+	pr_info("%s[BATT]...\n", __func__);
+	info->is_esus_state = true;
+
+	return;
+}
+
 static void sec_bat_late_resume(struct early_suspend *handle)
 {
 	struct sec_bat_info *info = container_of(handle, struct sec_bat_info,
@@ -2779,6 +2790,11 @@ static __devinit int sec_bat_probe(struct platform_device *pdev)
 		disable_irq(info->batt_int_irq);
 */
 	}
+
+	info->bat_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1;
+	info->bat_early_suspend.suspend = sec_bat_early_suspend;
+	info->bat_early_suspend.resume = sec_bat_late_resume;
+	register_early_suspend(&info->bat_early_suspend);
 
 	INIT_WORK(&info->monitor_work, sec_bat_monitor_work);
 	INIT_DELAYED_WORK_DEFERRABLE(&info->cable_work, sec_bat_cable_work);
