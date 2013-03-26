@@ -71,6 +71,10 @@ static int try_to_freeze_tasks(bool user_only)
 			todo += wq_busy;
 		}
 
+		if (todo && has_wake_lock(WAKE_LOCK_SUSPEND)) {
+			wakeup = 1;
+			break;
+		}
 		if (!todo || time_after(jiffies, end_time))
 			break;
 
@@ -173,7 +177,7 @@ int freeze_kernel_threads(void)
 {
 	int error;
 
-	error = sys_sync();
+	error = suspend_sys_sync_wait();
 	if (error)
 		return error;
 
