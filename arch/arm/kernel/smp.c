@@ -67,12 +67,6 @@ int __cpuinit __cpu_up(unsigned int cpu, struct task_struct *idle)
 	int ret;
 
 	/*
-	 * Spawn a new process manually, if not already done.
-	 * Grab a pointer to its task struct so we can mess with it
-	 */
-	}
-
-	/*
 	 * We need to tell the secondary core where to find
 	 * its stack and the page tables.
 	 */

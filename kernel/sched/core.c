@@ -83,7 +83,7 @@
 
 #include "sched.h"
 #include "../workqueue_sched.h"
-#include "smpboot.h"
+#include "../smpboot.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
