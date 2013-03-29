@@ -534,7 +534,7 @@ error:
 }
 
 spinlock_t mdp_lut_push_lock;
-static int mdp_lut_i;
+int mdp_lut_i;
 
 static int mdp_lut_hw_update(struct fb_cmap *cmap)
 {

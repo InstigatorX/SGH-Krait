@@ -52,6 +52,8 @@
 
 #define MAX_LUT_SIZE	256
 
+DEFINE_MUTEX(mdp_lut_push_sem);
+
 unsigned int mDNIe_data[MAX_LUT_SIZE * 3];
 
 int play_speed_1_5;
