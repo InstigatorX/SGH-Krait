@@ -160,7 +160,7 @@ static void mako_hotplug_early_suspend(struct early_suspend *handler)
 	}
 }
 
-static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
+static void mako_hotplug_late_resume(struct early_suspend *handler)
 {
     //bump the frequency a notch for the next timer_rate period
     struct cpufreq_policy *policy = cpufreq_cpu_get(0); 
