@@ -51,7 +51,7 @@ extern uint32 mdp_intr_mask;
 extern int mdp_lut_i;
 extern int mdp_lut_push;
 extern int mdp_lut_push_i;
-extern struct mutex mdp_lut_push_sem;
+extern spinlock_t mdp_lut_push_lock;
 
 #define MDP4_REVISION_V1		0
 #define MDP4_REVISION_V2		1
