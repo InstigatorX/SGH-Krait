@@ -35,6 +35,7 @@
 #include <linux/workqueue.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <mach/cpufreq.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -72,6 +73,8 @@ unsigned char flags;
 #define HOTPLUG_PAUSED		(1 << 1)
 #define BOOSTPULSE_ACTIVE	(1 << 2)
 #define EARLYSUSPEND_ACTIVE	(1 << 3)
+
+#define SUSPEND_FREQ 702000
 
 /*
  * Enable debug output to dump the average
@@ -435,7 +438,7 @@ static void __cpuinit hotplug_online_all_work_fn(struct work_struct *work)
 	/*
 	 * Pause for 2 seconds before even considering offlining a CPU
 	 */
-	schedule_delayed_work(&hotplug_unpause_work, HZ * 2);
+	schedule_delayed_work(&hotplug_unpause_work, HZ);
 	schedule_delayed_work_on(0, &hotplug_decision_work, min_sampling_rate);
 }
 
@@ -537,7 +540,7 @@ void hotplug_boostpulse(void)
 					pr_info("auto_hotplug: %s: Canceling hotplug_offline_work\n", __func__);
 				cancel_delayed_work(&hotplug_offline_work);
 				flags |= HOTPLUG_PAUSED;
-				schedule_delayed_work(&hotplug_unpause_work, HZ * 2);
+				schedule_delayed_work(&hotplug_unpause_work, HZ);
 				schedule_delayed_work_on(0, &hotplug_decision_work, min_sampling_rate);
 			}
 		}
@@ -557,8 +560,11 @@ static void auto_hotplug_early_suspend(struct early_suspend *handler)
 	cancel_delayed_work_sync(&hotplug_decision_work);
 	if (num_online_cpus() > 1) {
 		pr_info("auto_hotplug: Offlining CPUs for early suspend\n");
-		schedule_work_on(0, &hotplug_offline_all_work);
+		cpu_down(1);
 	}
+	//cap max frequency to SUSPEND_FREQ
+    msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, SUSPEND_FREQ);
+    pr_info("Cpulimit: Early suspend - limit cpu%d max frequency to: %dMHz\n", 0, SUSPEND_FREQ/1000);
 }
 
 static void auto_hotplug_late_resume(struct early_suspend *handler)
@@ -575,7 +581,11 @@ static void auto_hotplug_late_resume(struct early_suspend *handler)
 		history[i] = 500;
 	}
 
-	schedule_delayed_work_on(0, &hotplug_decision_work, HZ/2);
+	//restore default max frequency
+    msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, MSM_CPUFREQ_NO_LIMIT);
+    pr_info("Cpulimit: Late resume - restore cpu to max frequency.\n");
+    
+	schedule_delayed_work_on(0, &hotplug_decision_work, HZ);
 }
 
 static struct early_suspend auto_hotplug_suspend = {
