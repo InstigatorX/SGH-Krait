@@ -28,6 +28,8 @@ void __init msm9615_init_irq(void);
 void __init msm_rotator_update_bus_vectors(unsigned int xres,
 	unsigned int yres);
 void __init msm_rotator_set_split_iommu_domain(void);
+void __init add_ramconsole_devices(void);
+void __init add_persistent_ram(void);
 
 extern struct platform_device asoc_msm_pcm;
 extern struct platform_device asoc_msm_dai0;
@@ -55,6 +57,7 @@ extern struct platform_device *msm_device_uart_gsbi9;
 extern struct platform_device msm_device_uart_dm6;
 extern struct platform_device msm_device_uart_dm8;
 extern struct platform_device msm_device_uart_dm9;
+extern struct platform_device mpq8064_device_uartdm_gsbi6;
 
 extern struct platform_device msm8960_device_uart_gsbi2;
 extern struct platform_device msm8960_device_uart_gsbi5;

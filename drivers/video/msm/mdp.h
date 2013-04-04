@@ -25,6 +25,7 @@
 #include <linux/memory_alloc.h>
 #include <mach/hardware.h>
 #include <linux/msm_ion.h>
+#include <linux/spinlock.h>
 
 #ifdef CONFIG_MSM_BUS_SCALING
 #include <mach/msm_bus.h>

@@ -229,6 +229,10 @@ config FB_MSM_MIPI_DSI_NT35590
 	bool
 	select FB_MSM_MIPI_DSI
 
+config FB_MSM_MIPI_DSI_NT35590
+	bool
+	select FB_MSM_MIPI_DSI
+
 config FB_MSM_MIPI_DSI_TC358764_DSI2LVDS
 	bool
 	select FB_MSM_MIPI_DSI
