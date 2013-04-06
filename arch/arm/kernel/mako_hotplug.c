@@ -213,7 +213,7 @@ static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
     queue_delayed_work_on(0, wq, &decide_hotplug, HZ);
 }
 
-static struct early_suspend __cpuinitdata mako_hotplug_suspend =
+static struct early_suspend mako_hotplug_suspend =
 {
 	.suspend = mako_hotplug_early_suspend,
 	.resume = mako_hotplug_late_resume,
