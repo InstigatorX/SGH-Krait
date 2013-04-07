@@ -137,7 +137,7 @@ static struct attribute_group mako_hotplug_control_group =
 
 static struct miscdevice mako_hotplug_control_device =
 {
-	.minor = MISC_DYNAMIC_MINOR,
+	.minor = 0,
 	.name = "mako_hotplug_control",
 };
 

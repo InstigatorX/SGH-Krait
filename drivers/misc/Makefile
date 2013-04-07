@@ -85,4 +85,4 @@ obj-$(CONFIG_SAMSUNG_JACK)		+= sec_jack.o
 obj-$(CONFIG_OPTICAL_BH1721) += bh1721.o
 obj-$(CONFIG_SENSORS_CM36651)           += cm36651.o
 obj-$(CONFIG_VP_A2220)		+= a2220.o
-obj-y += mako_hotplug_control.o
+obj-$(CONFIG_MAKO_HOTPLUG) += mako_hotplug_control.o
