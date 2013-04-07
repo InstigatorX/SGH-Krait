@@ -55,6 +55,7 @@
 #include <mach/msm_dcvs.h>
 #include <mach/board.h>
 #include <mach/msm_iomap.h>
+#include "core.h"
 #include <mach/msm_spi.h>
 #ifdef CONFIG_USB_MSM_OTG_72K
 #include <mach/msm_hsusb.h>
@@ -5406,6 +5407,7 @@ static void __init samsung_m2_att_init(void)
 }
 
 MACHINE_START(M2_ATT, "SAMSUNG M2_ATT")
+	.smp = smp_ops(msm_smp_ops),
 	.map_io = msm8960_map_io,
 	.reserve = msm8960_reserve,
 	.init_irq = msm8960_init_irq,
