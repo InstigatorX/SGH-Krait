@@ -68,7 +68,7 @@ static void check_temp(struct work_struct *work)
 	} 
 	//the device is getting hot, lets throttle a little bit
 	else if (temp >= (temp_threshold - 5)) {
-		max_freq = 1188000;
+		max_freq = 1242000;
 	} 
 	//the device is in safe temperature, polling is normal (every second)
 	else if (temp < (temp_threshold - 10)) {

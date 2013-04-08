@@ -4064,9 +4064,6 @@ static struct platform_device msm_tsens_device = {
 
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 0,
-	.poll_ms = 250,
-	.limit_temp_degC = 60,
-	.temp_hysteresis_degC = 10,
 	.freq_step = 2,
 };
 
@@ -5394,7 +5391,7 @@ static void __init samsung_m2_att_init(void)
 #if 0
 	msm_pm_init_sleep_status_data(&msm_pm_slp_sts_data);
 #endif
-#if defined(CONFIG_BCM4334) || defined(CONFIG_BCM4334_MODULE)
+#if defined(CONFIG_BCM4334) || defined(CONFIG_BCM4334_MODULE) 
 	printk(KERN_INFO "[WIFI] system_rev = %d\n", system_rev);
 	if (system_rev >= 0x3)
 		brcm_wlan_init();
