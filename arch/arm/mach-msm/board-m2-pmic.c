@@ -484,6 +484,9 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.v_cutoff		= 3000,
 //	.normal_voltage_calc_ms	= 600000,
 	.max_voltage_uv		= MAX_VOLTAGE_MV * 1000,
+	.high_ocv_correction_limit_uv	= 50,
+	.low_ocv_correction_limit_uv	= 100,
+	.hold_soc_est			= 3,
 };
 
 #define	PM8921_LC_LED_MAX_CURRENT	2	/* I = 4mA */
@@ -980,7 +983,8 @@ static struct pm8xxx_led_platform_data pm8xxx_leds_pdata = {
 
 static struct pm8xxx_ccadc_platform_data pm8xxx_ccadc_pdata = {
 	.r_sense_uohm		= 10000,
-	.calib_delay_ms         = 600000,
+	.calib_delay_ms		= 600000,
+	.periodic_wakeup		= true,
 };
 
 static struct pm8921_platform_data pm8921_platform_data __devinitdata = {

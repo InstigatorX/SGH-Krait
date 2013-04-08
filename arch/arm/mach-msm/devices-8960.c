@@ -1774,6 +1774,34 @@ struct platform_device msm8960_device_qup_i2c_gsbi4 = {
 	.resource	= resources_qup_i2c_gsbi4,
 };
 
+static struct resource resources_qup_i2c_gsbi8[] = {
+	{
+		.name	= "gsbi_qup_i2c_addr",
+		.start	= MSM_GSBI8_PHYS,
+		.end	= MSM_GSBI8_PHYS + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_phys_addr",
+		.start	= MSM_GSBI8_QUP_PHYS,
+		.end	= MSM_GSBI8_QUP_PHYS + MSM_QUP_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_err_intr",
+		.start	= GSBI8_QUP_IRQ,
+		.end	= GSBI8_QUP_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device msm8960_device_qup_i2c_gsbi8 = {
+	.name		= "qup_i2c",
+	.id		= 8,
+	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi8),
+	.resource	= resources_qup_i2c_gsbi8,
+};
+
 static struct resource resources_qup_i2c_gsbi3[] = {
 	{
 		.name	= "gsbi_qup_i2c_addr",
@@ -1828,34 +1856,6 @@ struct platform_device msm8960_device_qup_i2c_gsbi7 = {
 	.id		= 7,
 	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi7),
 	.resource	= resources_qup_i2c_gsbi7,
-};
-
-static struct resource resources_qup_i2c_gsbi8[] = {
-	{
-		.name	= "gsbi_qup_i2c_addr",
-		.start	= MSM_GSBI8_PHYS,
-		.end	= MSM_GSBI8_PHYS + 4 - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	{
-		.name	= "qup_phys_addr",
-		.start	= MSM_GSBI8_QUP_PHYS,
-		.end	= MSM_GSBI8_QUP_PHYS + MSM_QUP_SIZE - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	{
-		.name	= "qup_err_intr",
-		.start	= GSBI8_QUP_IRQ,
-		.end	= GSBI8_QUP_IRQ,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device msm8960_device_qup_i2c_gsbi8 = {
-	.name		= "qup_i2c",
-	.id		= 8,
-	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi8),
-	.resource	= resources_qup_i2c_gsbi8,
 };
 
 static struct resource resources_qup_i2c_gsbi9[] = {
@@ -3997,8 +3997,8 @@ static struct msm_rpm_log_platform_data msm_rpm_log_pdata = {
 		[MSM_RPM_LOG_PAGE_BUFFER]  = 0x000000A0,
 	},
 	.phys_size = SZ_8K,
-	.log_len = 4096,		  /* log's buffer length in bytes */
-	.log_len_mask = (4096 >> 2) - 1,  /* length mask in units of u32 */
+	.log_len = 6144,		  /* log's buffer length in bytes */
+	.log_len_mask = (6144 >> 2) - 1,  /* length mask in units of u32 */
 };
 
 struct platform_device msm8960_rpm_log_device = {
