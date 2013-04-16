@@ -1199,8 +1199,8 @@ static void __init hw_init(void)
 	const struct l2_level *l2_level;
 	int cpu, rc;
 
-	//if (krait_needs_vmin())
-		//krait_apply_vmin(drv.acpu_freq_tbl);
+	if (krait_needs_vmin())
+		krait_apply_vmin(drv.acpu_freq_tbl);
 
 	l2->hfpll_base = ioremap(l2->hfpll_phys_base, SZ_32);
 	BUG_ON(!l2->hfpll_base);
