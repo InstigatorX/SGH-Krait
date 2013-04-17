@@ -347,11 +347,11 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   = 
-AFLAGS_MODULE   =
+CFLAGS_MODULE   = -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize -floop-interchange -floop-strip-mine -floop-block -ffast-math -funsafe-loop-optimizations
+AFLAGS_MODULE   = -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize -floop-interchange -floop-strip-mine -floop-block -ffast-math -funsafe-loop-optimizations
 LDFLAGS_MODULE  = --strip-debug
-CFLAGS_KERNEL	= -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize
-AFLAGS_KERNEL	= -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize
+CFLAGS_KERNEL	= -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize -floop-interchange -floop-strip-mine -floop-block -ffast-math -funsafe-loop-optimizations
+AFLAGS_KERNEL	= -mcpu=cortex-a15 -mfpu=neon -ftree-vectorize -floop-interchange -floop-strip-mine -floop-block -ffast-math -funsafe-loop-optimizations
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 
