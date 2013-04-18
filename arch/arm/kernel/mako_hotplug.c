@@ -115,7 +115,7 @@ static void third_level_work_check(unsigned long temp_diff, unsigned long now, u
     }
 }
 
-static void decide_hotplug_func(struct work_struct *work)
+static void __cpuinit decide_hotplug_func(struct work_struct *work)
 {
     unsigned long now;
     unsigned int i, first_level, second_level, third_level, load = 0;
@@ -183,7 +183,7 @@ static void decide_hotplug_func(struct work_struct *work)
     queue_delayed_work_on(0, wq, &decide_hotplug, msecs_to_jiffies(HZ));
 }
 
-static void mako_hotplug_early_suspend(struct early_suspend *handler)
+static void __cpuinit mako_hotplug_early_suspend(struct early_suspend *handler)
 {
     unsigned int cpu = nr_cpu_ids;
 	 
@@ -212,7 +212,7 @@ static void mako_hotplug_early_suspend(struct early_suspend *handler)
     stats.online_cpus = num_online_cpus();
 }
 
-static void mako_hotplug_late_resume(struct early_suspend *handler)
+static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
 {
     unsigned int cpu = nr_cpu_ids;
     
