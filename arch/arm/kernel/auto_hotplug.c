@@ -68,7 +68,7 @@
  * DISABLE is the load at which a CPU is disabled
  * These two are scaled based on num_online_cpus()
  */
-#define ENABLE_ALL_LOAD_THRESHOLD	(125 * CPUS_AVAILABLE)
+#define ENABLE_ALL_LOAD_THRESHOLD	(150 * CPUS_AVAILABLE)
 #define ENABLE_LOAD_THRESHOLD		225
 #define DISABLE_LOAD_THRESHOLD		60
 
@@ -202,7 +202,7 @@ static void hotplug_decision_work_fn(struct work_struct *work)
 
 }
 
-static void hotplug_online_all_work_fn(struct work_struct *work)
+static void __cpuinit hotplug_online_all_work_fn(struct work_struct *work)
 {
 	int cpu;
 	for_each_possible_cpu(cpu) {
@@ -229,7 +229,7 @@ static void hotplug_offline_all_work_fn(struct work_struct *work)
 	}
 }
 
-static void hotplug_online_single_work_fn(struct work_struct *work)
+static void __cpuinit hotplug_online_single_work_fn(struct work_struct *work)
 {
 	int cpu;
 
@@ -301,7 +301,6 @@ inline void hotplug_boostpulse(void)
 			schedule_work(&hotplug_online_single_work);
 			schedule_delayed_work(&hotplug_unpause_work, HZ * 2);
 		} else {
-			pr_info("auto_hotplug: %s: %d CPUs online\n", __func__, num_online_cpus());
 			if (delayed_work_pending(&hotplug_offline_work)) {
 				pr_info("auto_hotplug: %s: Cancelling hotplug_offline_work\n", __func__);
 				cancel_delayed_work(&hotplug_offline_work);
@@ -310,6 +309,7 @@ inline void hotplug_boostpulse(void)
 				schedule_delayed_work_on(0, &hotplug_decision_work, MIN_SAMPLING_RATE);
 			}
 		}
+		pr_info("auto_hotplug: %s: %d CPUs online\n", __func__, num_online_cpus());
 	}
 }
 
