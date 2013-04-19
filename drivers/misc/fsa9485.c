@@ -1300,7 +1300,6 @@ fail2:
 fail1:
 	input_unregister_device(input);
 	mutex_destroy(&usbsw->mutex);
-	i2c_set_clientdata(client, NULL);
 	kfree(usbsw);
 	return ret;
 }
@@ -1315,7 +1314,6 @@ static int __devexit fsa9485_remove(struct i2c_client *client)
 		free_irq(client->irq, usbsw);
 	}
 	mutex_destroy(&usbsw->mutex);
-	i2c_set_clientdata(client, NULL);
 
 	sysfs_remove_group(&client->dev.kobj, &fsa9485_group);
 	kfree(usbsw);
@@ -1356,17 +1354,7 @@ static struct i2c_driver fsa9485_i2c_driver = {
 	.id_table = fsa9485_id,
 };
 
-static int __init fsa9485_init(void)
-{
-	return i2c_add_driver(&fsa9485_i2c_driver);
-}
-module_init(fsa9485_init);
-
-static void __exit fsa9485_exit(void)
-{
-	i2c_del_driver(&fsa9485_i2c_driver);
-}
-module_exit(fsa9485_exit);
+module_i2c_driver(fsa9485_i2c_driver);
 
 MODULE_AUTHOR("Minkyu Kang <mk7.kang@samsung.com>");
 MODULE_DESCRIPTION("FSA9485 USB Switch driver");
