@@ -212,8 +212,7 @@ static void __cpuinit mako_hotplug_early_suspend(struct early_suspend *handler)
     msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, stats.suspend_frequency);
     pr_info("Cpulimit: Early suspend - limit cpu%d max frequency to: %dMHz\n",
             0, stats.suspend_frequency/1000);
-    
-    stats.online_cpus = num_online_cpus();
+
 }
 
 static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
@@ -233,13 +232,13 @@ static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
         }
     }
     
+    stats.time_stamp = ktime_to_ms(ktime_get());
+    
     /* restore default 1,5GHz max frequency */
     msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, MSM_CPUFREQ_NO_LIMIT);
     pr_info("Cpulimit: Late resume - restore cpu%d max frequency.\n", 0);
     
     /* new time_stamp and online_cpu because all cpus were just onlined */
-    stats.time_stamp = ktime_to_ms(ktime_get());
-    stats.online_cpus = num_online_cpus();
     
     pr_info("Late Resume starting Hotplug work...\n");
     queue_delayed_work_on(0, wq, &decide_hotplug, HZ);
