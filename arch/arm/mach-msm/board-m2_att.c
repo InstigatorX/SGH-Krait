@@ -4043,9 +4043,9 @@ static struct platform_device msm_device_saw_core1 = {
 };
 
 static struct tsens_platform_data msm_tsens_pdata  = {
-		.slope			= {910, 910, 910, 910, 910},
+		.slope				= {910, 910, 910, 910, 910},
 		.tsens_factor		= 1000,
-		.hw_type		= MSM_8960,
+		.hw_type			= MSM_8960,
 		.tsens_num_sensor	= 5,
 };
 
@@ -4056,6 +4056,9 @@ static struct platform_device msm_tsens_device = {
 
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 0,
+	.poll_ms = 250,
+	.limit_temp_degC = 70,
+	.temp_hysteresis_degC = 10,
 	.freq_step = 2,
 };
 
