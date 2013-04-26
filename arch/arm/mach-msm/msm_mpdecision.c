@@ -34,6 +34,7 @@
 #include <linux/hrtimer.h>
 #include <linux/delay.h>
 #include "acpuclock.h"
+#include <mach/cpufreq.h>
 
 #define DEBUG 0
 
@@ -42,6 +43,7 @@
 #define MSM_MPDEC_DELAY                 100
 #define MSM_MPDEC_PAUSE                 10000
 #define MSM_MPDEC_IDLE_FREQ             486000
+#define DEFAULT_SUSPEND_FREQ 			702000
 
 enum {
     MSM_MPDEC_DISABLED = 0,
@@ -73,6 +75,7 @@ static struct msm_mpdec_tuners {
     unsigned long int idle_freq;
     unsigned int max_cpus;
     unsigned int min_cpus;
+    unsigned int suspend_frequency;
 } msm_mpdec_tuners_ins = {
     .startdelay = MSM_MPDEC_STARTDELAY,
     .delay = MSM_MPDEC_DELAY,
@@ -81,6 +84,7 @@ static struct msm_mpdec_tuners {
     .idle_freq = MSM_MPDEC_IDLE_FREQ,
     .max_cpus = CONFIG_NR_CPUS,
     .min_cpus = 1,
+    .suspend_frequency = DEFAULT_SUSPEND_FREQ,
 };
 
 static unsigned int NwNs_Threshold[8] = {25, 0, 40, 15, 32, 28, 0, 35};
@@ -343,7 +347,10 @@ static void msm_mpdec_early_suspend(struct early_suspend *h) {
     }
     /* main work thread can sleep now */
     cancel_delayed_work_sync(&msm_mpdec_work);
-
+	
+	msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, msm_mpdec_tuners_ins.suspend_frequency);
+    pr_info("Cpulimit: Early suspend - limit cpu%d max frequency to: %dMHz\n",
+            0, DEFAULT_SUSPEND_FREQ/1000);
     pr_info(MPDEC_TAG"Screen -> off. Deactivated mpdecision.\n");
 }
 
@@ -364,7 +371,9 @@ static void msm_mpdec_late_resume(struct early_suspend *h) {
                 cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
     }
     mutex_unlock(&per_cpu(msm_mpdec_cpudata, 1).suspend_mutex);
-
+	
+	msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, MSM_CPUFREQ_NO_LIMIT);
+	
     /* wake up main work thread */
     was_paused = true;
     queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work, 0);
@@ -767,7 +776,7 @@ static int __init msm_mpdec_init(void) {
         per_cpu(msm_mpdec_cpudata, cpu).times_cpu_unplugged = 0;
         per_cpu(msm_mpdec_cpudata, cpu).times_cpu_hotplugged = 0;
     }
-
+	
     was_paused = true;
 
     msm_mpdec_workq = alloc_workqueue("mpdec",
