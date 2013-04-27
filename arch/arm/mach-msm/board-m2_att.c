@@ -54,6 +54,7 @@
 
 #include <mach/msm_dcvs.h>
 #include <mach/board.h>
+#include <mach/msm_tspp.h>
 #include <mach/msm_iomap.h>
 #include "core.h"
 #include <mach/msm_spi.h>
@@ -344,7 +345,7 @@ static struct msm_gpiomux_config msm8960_sec_ts_configs[] = {
 #ifdef CONFIG_CMA
 #define MSM_ION_HEAP_NUM	8
 #else
-#define MSM_ION_HEAP_NUM	7
+#define MSM_ION_HEAP_NUM	8
 #endif
 #else
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
@@ -544,6 +545,7 @@ static struct ion_cp_heap_pdata cp_mm_msm8960_ion_pdata = {
 #ifdef CONFIG_CMA
 	.is_cma = 1,
 #endif
+	.no_nonsecure_alloc = 1,
 };
 
 static struct ion_cp_heap_pdata cp_mfc_msm8960_ion_pdata = {
@@ -552,6 +554,7 @@ static struct ion_cp_heap_pdata cp_mfc_msm8960_ion_pdata = {
 	.reusable = 0,
 	.mem_is_fmem = FMEM_ENABLED,
 	.fixed_position = FIXED_HIGH,
+	.no_nonsecure_alloc = 1,
 };
 
 static struct ion_co_heap_pdata co_msm8960_ion_pdata = {
@@ -647,6 +650,9 @@ struct ion_platform_heap msm8960_heaps[] = {
 			.id = ION_IOMMU_HEAP_ID,
 			.type   = ION_HEAP_TYPE_IOMMU,
 			.name   = ION_IOMMU_HEAP_NAME,
+			.size   = MSM_ION_ADSP_SIZE,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *) &co_msm8960_ion_pdata,
 		},
 		{
 			.id = ION_QSECOM_HEAP_ID,
@@ -961,8 +967,8 @@ static void ion_adjust_secure_allocation(void)
 			case ION_HEAP_TYPE_CP:
 				if (cpu_is_msm8960()) {
 					((struct ion_cp_heap_pdata *)
-					heap->extra_data)->allow_nonsecure_alloc =
-						1;
+					heap->extra_data)->no_nonsecure_alloc =
+						0;
 				}
 
 			}
@@ -3139,6 +3145,110 @@ static struct platform_device *mdm_devices[] __initdata = {
 	&mdm_device,
 };
 
+#define MSM_TSIF0_PHYS			(0x18200000)
+#define MSM_TSIF1_PHYS			(0x18201000)
+#define MSM_TSIF_SIZE			(0x200)
+#define MSM_TSPP_PHYS			(0x18202000)
+#define MSM_TSPP_SIZE			(0x1000)
+#define MSM_TSPP_BAM_PHYS		(0x18204000)
+#define MSM_TSPP_BAM_SIZE		(0x2000)
+
+#define TSIF_0_CLK       GPIO_CFG(75, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_0_EN        GPIO_CFG(76, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_0_DATA      GPIO_CFG(77, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_0_SYNC      GPIO_CFG(82, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_1_CLK       GPIO_CFG(79, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_1_EN        GPIO_CFG(80, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_1_DATA      GPIO_CFG(81, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+#define TSIF_1_SYNC      GPIO_CFG(78, 1, GPIO_CFG_INPUT, \
+	GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)
+
+static const struct msm_gpio tsif_gpios[] = {
+	{ .gpio_cfg = TSIF_0_CLK,  .label =  "tsif0_clk", },
+	{ .gpio_cfg = TSIF_0_EN,   .label =  "tsif0_en", },
+	{ .gpio_cfg = TSIF_0_DATA, .label =  "tsif0_data", },
+	{ .gpio_cfg = TSIF_0_SYNC, .label =  "tsif0_sync", },
+	{ .gpio_cfg = TSIF_1_CLK,  .label =  "tsif1_clk", },
+	{ .gpio_cfg = TSIF_1_EN,   .label =  "tsif1_en", },
+	{ .gpio_cfg = TSIF_1_DATA, .label =  "tsif1_data", },
+	{ .gpio_cfg = TSIF_1_SYNC, .label =  "tsif1_sync", },
+};
+
+static struct resource tspp_resources[] = {
+	[0] = {
+		.name = "TSIF_TSPP_IRQ",
+		.flags = IORESOURCE_IRQ,
+		.start = TSIF_TSPP_IRQ,
+		.end   = TSIF_TSPP_IRQ,
+	},
+	[1] = {
+		.name = "TSIF0_IRQ",
+		.flags = IORESOURCE_IRQ,
+		.start = TSIF1_IRQ,
+		.end   = TSIF1_IRQ,
+	},
+	[2] = {
+		.name = "TSIF1_IRQ",
+		.flags = IORESOURCE_IRQ,
+		.start = TSIF2_IRQ,
+		.end   = TSIF2_IRQ,
+	},
+	[3] = {
+		.name = "TSIF_BAM_IRQ",
+		.flags = IORESOURCE_IRQ,
+		.start = TSIF_BAM_IRQ,
+		.end   = TSIF_BAM_IRQ,
+	},
+	[4] = {
+		.name = "MSM_TSIF0_PHYS",
+		.flags = IORESOURCE_MEM,
+		.start = MSM_TSIF0_PHYS,
+		.end   = MSM_TSIF0_PHYS + MSM_TSIF_SIZE - 1,
+	},
+	[5] = {
+		.name = "MSM_TSIF1_PHYS",
+		.flags = IORESOURCE_MEM,
+		.start = MSM_TSIF1_PHYS,
+		.end   = MSM_TSIF1_PHYS + MSM_TSIF_SIZE - 1,
+	},
+	[6] = {
+		.name = "MSM_TSPP_PHYS",
+		.flags = IORESOURCE_MEM,
+		.start = MSM_TSPP_PHYS,
+		.end   = MSM_TSPP_PHYS + MSM_TSPP_SIZE - 1,
+	},
+	[7] = {
+		.name = "MSM_TSPP_BAM_PHYS",
+		.flags = IORESOURCE_MEM,
+		.start = MSM_TSPP_BAM_PHYS,
+		.end   = MSM_TSPP_BAM_PHYS + MSM_TSPP_BAM_SIZE - 1,
+	},
+};
+
+static struct msm_tspp_platform_data tspp_platform_data = {
+	.num_gpios = ARRAY_SIZE(tsif_gpios),
+	.gpios = tsif_gpios,
+	.tsif_pclk = "tsif_pclk",
+	.tsif_ref_clk = "tsif_ref_clk",
+};
+
+static struct platform_device msm_device_tspp = {
+	.name          = "msm_tspp",
+	.id            = 0,
+	.num_resources = ARRAY_SIZE(tspp_resources),
+	.resource      = tspp_resources,
+	.dev = {
+		.platform_data = &tspp_platform_data
+	},
+};
+
 #define MSM_SHARED_RAM_PHYS 0x80000000
 
 static void __init msm8960_map_io(void)
@@ -3477,6 +3587,13 @@ static uint8_t spm_wfi_cmd_sequence[] __initdata = {
 static uint8_t spm_retention_cmd_sequence[] __initdata = {
 	0x00, 0x05, 0x03, 0x0D,
 	0x0B, 0x00, 0x0f,
+};
+
+static uint8_t spm_retention_with_krait_v3_cmd_sequence[] __initdata = {
+       0x42, 0x1B, 0x00,
+       0x05, 0x03, 0x0D, 0x0B,
+       0x00, 0x42, 0x1B,
+       0x0f,
 };
 
 static uint8_t spm_power_collapse_without_rpm[] __initdata = {
@@ -4381,7 +4498,6 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm_device_vidc,
 	&msm_device_bam_dmux,
 	&msm_fm_platform_init,
-
 #if defined(CONFIG_TSIF) || defined(CONFIG_TSIF_MODULE)
 #ifdef CONFIG_MSM_USE_TSIF1
 	&msm_device_tsif[1],
@@ -4389,7 +4505,7 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm_device_tsif[0],
 #endif
 #endif
-
+	&msm_device_tspp,
 #ifdef CONFIG_HW_RANDOM_MSM
 	&msm_device_rng,
 #endif
@@ -5230,6 +5346,24 @@ static void __init msm8960ab_update_krait_spm(void)
 	}
 }
 
+static void __init msm8960ab_update_retention_spm(void)
+{
+       int i;
+
+       /* Update the SPM sequences for krait retention on all cores */
+       for (i = 0; i < ARRAY_SIZE(msm_spm_data); i++) {
+               int j;
+               struct msm_spm_platform_data *pdata = &msm_spm_data[i];
+               for (j = 0; j < pdata->num_modes; j++) {
+                       if (pdata->modes[j].cmd ==
+                                       spm_retention_cmd_sequence)
+                               pdata->modes[j].cmd =
+                               spm_retention_with_krait_v3_cmd_sequence;
+               }
+       }
+}
+
+
 static void __init msm8960_tsens_init(void)
 {
 	if (cpu_is_msm8960())
@@ -5315,6 +5449,12 @@ static void __init samsung_m2_att_init(void)
 	msm8960_gfx_init();
 	if (cpu_is_msm8960ab())
 		msm8960ab_update_krait_spm();
+	if (cpu_is_krait_v3()) {
+		msm_pm_set_tz_retention_flag(0);
+ 		msm8960ab_update_retention_spm();
+	} else {
+		msm_pm_set_tz_retention_flag(1);
+	}
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
 	msm8960_init_buses();
@@ -5392,7 +5532,6 @@ static void __init samsung_m2_att_init(void)
 	if (system_rev >= 0x3)
 		brcm_wlan_init();
 #endif
-	msm_pm_set_tz_retention_flag(1);
 
 	if (PLATFORM_IS_CHARM25())
 		platform_add_devices(mdm_devices, ARRAY_SIZE(mdm_devices));
