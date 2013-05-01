@@ -22,6 +22,8 @@
  * should be called from appropriate initialization code. Returns 0 on
  * success and error on failure.
  */
+
+#ifdef CONFIG_ARCH_MSM8974
 int __init krait_power_init(void);
 void secondary_cpu_hs_init(void *base_ptr);
 
@@ -51,4 +53,6 @@ static inline int krait_power_mdd_enable(int cpu_num, bool on)
 {
 	return -EINVAL;
 }
+#endif
+
 #endif
