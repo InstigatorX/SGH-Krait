@@ -823,7 +823,7 @@ static void __init reserve_ion_memory(void)
 
 			if (fixed_position != NOT_FIXED)
 				fixed_size += heap->size;
-			else
+			else if (!use_cma)
 				reserve_mem_for_ion(MEMTYPE_EBI1, heap->size);
 
 			if (fixed_position == FIXED_LOW) {
@@ -1050,8 +1050,9 @@ static void __init msm8960_reserve(void)
 {
 	msm8960_set_display_params(prim_panel_name, ext_panel_name);
 	msm_reserve();
-
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_persistent_ram();
+#endif
 
 #ifdef CONFIG_KEXEC_HARDBOOT
 	memblock_remove(KEXEC_HB_PAGE_ADDR, SZ_4K);
@@ -4416,6 +4417,7 @@ static struct platform_device *common_devices[] __initdata = {
 #endif
 	&msm8960_iommu_domain_device,
 	&msm_tsens_device,
+	&msm8960_cpu_slp_status,
 };
 
 static struct platform_device *m2_spr_devices[] __initdata = {
@@ -4577,14 +4579,14 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 		true,
 		415, 715, 340827, 475,
 	},
-
+#if defined(CONFIG_MSM_STANDALONE_POWER_COLLAPSE)
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE,
 		MSM_RPMRS_LIMITS(ON, ACTIVE, MAX, ACTIVE),
 		true,
 		1300, 228, 1200000, 2000,
 	},
-
+#endif
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
@@ -4993,6 +4995,10 @@ struct i2c_registry cmc624_max8952_i2c_devices = {
 	/* Build the matching 'supported_machs' bitmask */
 	if (machine_is_msm8960_cdp())
 		mach_mask = I2C_SURF;
+	else if (machine_is_msm8960_rumi3())
+		mach_mask = I2C_RUMI;
+	else if (machine_is_msm8960_sim())
+		mach_mask = I2C_SIM;
 	else if (machine_is_msm8960_fluid())
 		mach_mask = I2C_FLUID;
 	else if (machine_is_msm8960_liquid())
@@ -5306,8 +5312,9 @@ static void __init samsung_m2_spr_init(void)
 	msm8960_device_qup_spi_gsbi11.dev.platform_data =
 				&msm8960_qup_spi_gsbi11_pdata;
 #endif
-
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_ramconsole_devices();
+#endif
 
 #ifndef CONFIG_S5C73M3
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));

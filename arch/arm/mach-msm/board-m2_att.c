@@ -827,7 +827,7 @@ static void __init reserve_ion_memory(void)
 
 			if (fixed_position != NOT_FIXED)
 				fixed_size += heap->size;
-			else
+			else if (!use_cma)
 				reserve_mem_for_ion(MEMTYPE_EBI1, heap->size);
 
 			if (fixed_position == FIXED_LOW) {
@@ -1054,8 +1054,9 @@ static void __init msm8960_reserve(void)
 {
 	msm8960_set_display_params(prim_panel_name, ext_panel_name);
 	msm_reserve();
-
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_persistent_ram();
+#endif
 
 #ifdef CONFIG_KEXEC_HARDBOOT
 	memblock_remove(KEXEC_HB_PAGE_ADDR, SZ_4K);
@@ -4000,14 +4001,6 @@ static struct msm_rpm_platform_data msm_rpm_data = {
 };
 #endif
 
-#if 0
-static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
-	.base_addr = MSM_ACC0_BASE + 0x08,
-	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
-	.mask = 1UL << 13,
-};
-#endif
-
 #ifndef CONFIG_S5C73M3
 static struct ks8851_pdata spi_eth_pdata = {
 	.irq_gpio = KS8851_IRQ_GPIO,
@@ -4081,13 +4074,6 @@ static struct platform_device bcm4334_bluetooth_device = {
 static struct platform_device fish_battery_device = {
 	.name = "fish_battery",
 };
-#endif
-
-#ifdef CONFIG_BATTERY_BCL
-static struct platform_device battery_bcl_device = {
-	.name = "battery_current_limit",
-	.id = -1,
-	};
 #endif
 
 static struct platform_device msm8960_device_ext_5v_vreg __devinitdata = {
@@ -4378,9 +4364,6 @@ static struct platform_device *common_devices[] __initdata = {
 #ifdef CONFIG_MSM_FAKE_BATTERY
 	&fish_battery_device,
 #endif
-#ifdef CONFIG_BATTERY_BCL
-	&battery_bcl_device,
-#endif
 	&msm8960_fmem_device,
 #ifdef CONFIG_KEYBOARD_GPIO
 	&msm8960_gpio_keys_device,
@@ -4426,7 +4409,7 @@ static struct platform_device *common_devices[] __initdata = {
 #endif
 	&msm8960_iommu_domain_device,
 	&msm_tsens_device,
-	&msm8960_pc_cntr,
+	&msm8960_cpu_slp_status,
 };
 
 static struct platform_device *m2_att_devices[] __initdata = {
@@ -4991,6 +4974,10 @@ struct i2c_registry cmc624_max8952_i2c_devices = {
 	/* Build the matching 'supported_machs' bitmask */
 	if (machine_is_msm8960_cdp())
 		mach_mask = I2C_SURF;
+	else if (machine_is_msm8960_rumi3())
+		mach_mask = I2C_RUMI;
+	else if (machine_is_msm8960_sim())
+		mach_mask = I2C_SIM;
 	else if (machine_is_msm8960_fluid())
 		mach_mask = I2C_FLUID;
 	else if (machine_is_msm8960_liquid())
@@ -5307,8 +5294,9 @@ static void __init samsung_m2_att_init(void)
 	msm8960_device_qup_spi_gsbi11.dev.platform_data =
 				&msm8960_qup_spi_gsbi11_pdata;
 #endif
-
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
 	add_ramconsole_devices();
+#endif
 
 #ifndef CONFIG_S5C73M3
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));

@@ -22,7 +22,6 @@ cp drivers/net/wireless/btlock/btlock.ko build_dir/Boot-CM10.1/realsystem/lib/mo
 cp drivers/scsi/scsi_wait_scan.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 cp drivers/spi/spidev.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 cp drivers/char/adsprpc.ko build_dir/Boot-CM10.1/realsystem/lib/modules
-cp block/test-iosched.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 cp drivers/hid/hid-logitech-dj.ko build_dir/Boot-CM10.1/realsystem/lib/modules
 
 cd ramdisk/initramfs

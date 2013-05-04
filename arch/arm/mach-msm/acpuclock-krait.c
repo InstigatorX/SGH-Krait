@@ -429,9 +429,12 @@ static int calculate_vdd_dig(const struct acpu_level *tgt)
 		   max(l2_pll_vdd_dig, cpu_pll_vdd_dig));
 }
 
+static bool enable_boost = true;
+module_param_named(boost, enable_boost, bool, S_IRUGO | S_IWUSR);
+
 static int calculate_vdd_core(const struct acpu_level *tgt)
 {
-	return tgt->vdd_core;
+	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0);
 }
 
 static DEFINE_MUTEX(l2_regulator_lock);
@@ -626,8 +629,9 @@ static void __cpuinit hfpll_init(struct scalable *sc,
 		writel_relaxed(drv.hfpll_data->droop_val,
 			       sc->hfpll_base + drv.hfpll_data->droop_offset);
 
-	/* Set an initial PLL rate. */
+	/* Set an initial rate and enable the PLL. */
 	hfpll_set_rate(sc, tgt_s);
+	hfpll_enable(sc, false);
 }
 
 static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
@@ -798,9 +802,7 @@ static int __cpuinit init_clock_sources(struct scalable *sc,
 	regval &= ~(0x3 << 6);
 	set_l2_indirect_reg(sc->l2cpmr_iaddr, regval);
 
-	/* Enable and switch to the target clock source. */
-	if (tgt_s->src == HFPLL)
-	hfpll_enable(sc, false);
+	/* Switch to the target clock source. */
 	set_pri_clk_src(sc, tgt_s->pri_src_sel);
 	sc->cur_speed = tgt_s;
 
@@ -1077,7 +1079,7 @@ static struct notifier_block __cpuinitdata acpuclk_cpu_notifier = {
 	.notifier_call = acpuclk_cpu_callback,
 };
 
-static const int __init krait_needs_vmin(void)
+static const int krait_needs_vmin(void)
 {
 	switch (read_cpuid_id()) {
 	case 0x511F04D0: /* KR28M2A20 */
@@ -1089,7 +1091,7 @@ static const int __init krait_needs_vmin(void)
 	};
 }
 
-static void __init krait_apply_vmin(struct acpu_level *tbl)
+static void krait_apply_vmin(struct acpu_level *tbl)
 {
 	for (; tbl->speed.khz != 0; tbl++) {
 		if (tbl->vdd_core < 1150000)
@@ -1199,8 +1201,8 @@ static void __init hw_init(void)
 	const struct l2_level *l2_level;
 	int cpu, rc;
 
-	//if (krait_needs_vmin())
-		//krait_apply_vmin(drv.acpu_freq_tbl);
+	if (krait_needs_vmin())
+		krait_apply_vmin(drv.acpu_freq_tbl);
 
 	l2->hfpll_base = ioremap(l2->hfpll_phys_base, SZ_32);
 	BUG_ON(!l2->hfpll_base);

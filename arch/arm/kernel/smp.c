@@ -43,6 +43,10 @@
 #include <asm/localtimer.h>
 #include <asm/smp_plat.h>
 
+#ifdef CONFIG_SEC_DEBUG
+#include <mach/sec_debug.h>
+#endif
+
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -62,9 +66,30 @@ enum ipi_msg_type {
 
 static DECLARE_COMPLETION(cpu_running);
 
-int __cpuinit __cpu_up(unsigned int cpu, struct task_struct *idle)
+int __cpuinit __cpu_up(unsigned int cpu)
 {
+	struct cpuinfo_arm *ci = &per_cpu(cpu_data, cpu);
+	struct task_struct *idle = ci->idle;
 	int ret;
+
+	/*
+	 * Spawn a new process manually, if not already done.
+	 * Grab a pointer to its task struct so we can mess with it
+	 */
+	if (!idle) {
+		idle = fork_idle(cpu);
+		if (IS_ERR(idle)) {
+			printk(KERN_ERR "CPU%u: fork() failed\n", cpu);
+			return PTR_ERR(idle);
+		}
+		ci->idle = idle;
+	} else {
+		/*
+		 * Since this idle thread is being re-used, call
+		 * init_idle() to reinitialize the thread structure.
+		 */
+		init_idle(idle, cpu);
+	}
 
 	/*
 	 * We need to tell the secondary core where to find
@@ -303,6 +328,9 @@ void __init smp_cpus_done(unsigned int max_cpus)
 
 void __init smp_prepare_boot_cpu(void)
 {
+	unsigned int cpu = smp_processor_id();
+
+	per_cpu(cpu_data, cpu).idle = current;
 }
 
 void __init smp_prepare_cpus(unsigned int max_cpus)
@@ -486,6 +514,9 @@ static void ipi_cpu_stop(unsigned int cpu)
 		raw_spin_lock(&stop_lock);
 		printk(KERN_CRIT "CPU%u: stopping\n", cpu);
 		dump_stack();
+#ifdef CONFIG_SEC_DEBUG
+		sec_debug_dump_stack();
+#endif
 		raw_spin_unlock(&stop_lock);
 	}
 

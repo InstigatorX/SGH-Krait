@@ -57,6 +57,7 @@
 #include <mach/msm_dcvs.h>
 #include <mach/iommu_domains.h>
 #include <mach/socinfo.h>
+#include "pm.h"
 
 #ifdef CONFIG_MSM_MPM
 #include <mach/mpm.h>
@@ -1086,7 +1087,7 @@ struct msm_vidc_platform_data vidc_platform_data = {
 	.disable_dmx = 0,
 	.disable_fullhd = 0,
 	.cont_mode_dpb_count = 18,
-	.fw_addr = 0xafe00000,
+	.fw_addr = 0x9fe00000,
 	.enable_sec_metadata = 0,
 };
 
@@ -1639,6 +1640,19 @@ struct platform_device msm_device_bam_dmux = {
 	.id		= -1,
 };
 
+static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
+	.base_addr = MSM_ACC0_BASE + 0x08,
+	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
+	.mask = 1UL << 13,
+};
+struct platform_device msm8960_cpu_slp_status = {
+	.name		= "cpu_slp_status",
+	.id		= -1,
+	.dev = {
+		.platform_data = &msm_pm_slp_sts_data,
+	},
+};
+
 static struct msm_watchdog_pdata msm_watchdog_pdata = {
 	.pet_time = 10000,
 	.bark_time = 11000,
@@ -1710,7 +1724,7 @@ int __init msm_add_sdcc(unsigned int controller, struct mmc_platform_data *plat)
 	pdev->dev.platform_data = plat;
 	return platform_device_register(pdev);
 }
-#if defined(CONFIG_MACH_M2_SPR) || defined(CONFIG_MACH_M2_VZW) || defined(CONFIG_MACH_M2_ATT) || defined(CONFIG_MACH_M2_SKT) || defined(CONFIG_MACH_M2_DCM)
+#if defined(CONFIG_MACH_M2)
 static struct resource resources_qup_i2c_gsbi1[] = {
 	{
 		.name	= "gsbi_qup_i2c_addr",
@@ -1778,34 +1792,6 @@ struct platform_device msm8960_device_qup_i2c_gsbi4 = {
 	.resource	= resources_qup_i2c_gsbi4,
 };
 
-static struct resource resources_qup_i2c_gsbi8[] = {
-	{
-		.name	= "gsbi_qup_i2c_addr",
-		.start	= MSM_GSBI8_PHYS,
-		.end	= MSM_GSBI8_PHYS + 4 - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	{
-		.name	= "qup_phys_addr",
-		.start	= MSM_GSBI8_QUP_PHYS,
-		.end	= MSM_GSBI8_QUP_PHYS + MSM_QUP_SIZE - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-	{
-		.name	= "qup_err_intr",
-		.start	= GSBI8_QUP_IRQ,
-		.end	= GSBI8_QUP_IRQ,
-		.flags	= IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device msm8960_device_qup_i2c_gsbi8 = {
-	.name		= "qup_i2c",
-	.id		= 8,
-	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi8),
-	.resource	= resources_qup_i2c_gsbi8,
-};
-
 static struct resource resources_qup_i2c_gsbi3[] = {
 	{
 		.name	= "gsbi_qup_i2c_addr",
@@ -1860,6 +1846,34 @@ struct platform_device msm8960_device_qup_i2c_gsbi7 = {
 	.id		= 7,
 	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi7),
 	.resource	= resources_qup_i2c_gsbi7,
+};
+
+static struct resource resources_qup_i2c_gsbi8[] = {
+	{
+		.name	= "gsbi_qup_i2c_addr",
+		.start	= MSM_GSBI8_PHYS,
+		.end	= MSM_GSBI8_PHYS + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_phys_addr",
+		.start	= MSM_GSBI8_QUP_PHYS,
+		.end	= MSM_GSBI8_QUP_PHYS + MSM_QUP_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_err_intr",
+		.start	= GSBI8_QUP_IRQ,
+		.end	= GSBI8_QUP_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device msm8960_device_qup_i2c_gsbi8 = {
+	.name		= "qup_i2c",
+	.id		= 8,
+	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi8),
+	.resource	= resources_qup_i2c_gsbi8,
 };
 
 static struct resource resources_qup_i2c_gsbi9[] = {

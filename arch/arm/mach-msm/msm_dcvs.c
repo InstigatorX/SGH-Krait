@@ -145,7 +145,7 @@ static struct dcvs_core core_list[CORES_MAX];
 
 static struct kobject *cores_kobj;
 
-#define DCVS_MAX_NUM_FREQS 15
+#define DCVS_MAX_NUM_FREQS 20
 static struct msm_dcvs_freq_entry cpu_freq_tbl[DCVS_MAX_NUM_FREQS];
 static unsigned num_cpu_freqs;
 static struct msm_dcvs_platform_data *dcvs_pdata;
@@ -1258,6 +1258,7 @@ int msm_dcvs_idle(int dcvs_core_id, enum msm_core_idle_state state,
 			__err("Error (%d) sending idle exit for %s\n",
 					ret, core->core_name);
 		start_slack_timer(core, timer_interval_us);
+
 		break;
 	}
 

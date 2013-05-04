@@ -81,9 +81,12 @@
 #include <asm/paravirt.h>
 #endif
 
+#ifdef CONFIG_SEC_DEBUG
+#include <mach/sec_debug.h>
+#endif
+
 #include "sched.h"
 #include "../workqueue_sched.h"
-#include "../smpboot.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
@@ -700,6 +703,8 @@ int tg_nop(struct task_group *tg, void *data)
 	return 0;
 }
 #endif
+
+void update_cpu_load(struct rq *this_rq);
 
 static void set_load_weight(struct task_struct *p)
 {
@@ -2625,12 +2630,21 @@ decay_load_missed(unsigned long load, unsigned long missed_updates, int idx)
  * scheduler tick (TICK_NSEC). With tickless idle this will not be called
  * every tick. We fix it up based on jiffies.
  */
-static void __update_cpu_load(struct rq *this_rq, unsigned long this_load,
-			      unsigned long pending_updates)
+void update_cpu_load(struct rq *this_rq)
 {
+	unsigned long this_load = this_rq->load.weight;
+	unsigned long curr_jiffies = jiffies;
+	unsigned long pending_updates;
 	int i, scale;
 
 	this_rq->nr_load_updates++;
+
+	/* Avoid repeated calls on same jiffy, when moving in and out of idle */
+	if (curr_jiffies == this_rq->last_load_update_tick)
+		return;
+
+	pending_updates = curr_jiffies - this_rq->last_load_update_tick;
+	this_rq->last_load_update_tick = curr_jiffies;
 
 	/* Update our load: */
 	this_rq->cpu_load[0] = this_load; /* Fasttrack for idx 0 */
@@ -2656,78 +2670,9 @@ static void __update_cpu_load(struct rq *this_rq, unsigned long this_load,
 	sched_avg_update(this_rq);
 }
 
-#ifdef CONFIG_NO_HZ
-/*
- * There is no sane way to deal with nohz on smp when using jiffies because the
- * cpu doing the jiffies update might drift wrt the cpu doing the jiffy reading
- * causing off-by-one errors in observed deltas; {0,2} instead of {1,1}.
- *
- * Therefore we cannot use the delta approach from the regular tick since that
- * would seriously skew the load calculation. However we'll make do for those
- * updates happening while idle (nohz_idle_balance) or coming out of idle
- * (tick_nohz_idle_exit).
- *
- * This means we might still be one tick off for nohz periods.
- */
-
-/*
- * Called from nohz_idle_balance() to update the load ratings before doing the
- * idle balance.
- */
-void update_idle_cpu_load(struct rq *this_rq)
-{
-	unsigned long curr_jiffies = ACCESS_ONCE(jiffies);
-	unsigned long load = this_rq->load.weight;
-	unsigned long pending_updates;
-
-	/*
-	 * bail if there's load or we're actually up-to-date.
-	 */
-	if (load || curr_jiffies == this_rq->last_load_update_tick)
-		return;
-
-	pending_updates = curr_jiffies - this_rq->last_load_update_tick;
-	this_rq->last_load_update_tick = curr_jiffies;
-
-	__update_cpu_load(this_rq, load, pending_updates);
-}
-
-/*
- * Called from tick_nohz_idle_exit() -- try and fix up the ticks we missed.
- */
-void update_cpu_load_nohz(void)
-{
-	struct rq *this_rq = this_rq();
-	unsigned long curr_jiffies = ACCESS_ONCE(jiffies);
-	unsigned long pending_updates;
-
-	if (curr_jiffies == this_rq->last_load_update_tick)
-		return;
-
-	raw_spin_lock(&this_rq->lock);
-	pending_updates = curr_jiffies - this_rq->last_load_update_tick;
-	if (pending_updates) {
-		this_rq->last_load_update_tick = curr_jiffies;
-		/*
-		 * We were idle, this means load 0, the current load might be
-		 * !0 due to remote wakeups and the sort.
-		 */
-		__update_cpu_load(this_rq, 0, pending_updates);
-	}
-	raw_spin_unlock(&this_rq->lock);
-}
-#endif /* CONFIG_NO_HZ */
-
-/*
- * Called from scheduler_tick()
- */
 static void update_cpu_load_active(struct rq *this_rq)
 {
-	/*
-	 * See the mess around update_idle_cpu_load() / update_cpu_load_nohz().
-	 */
-	this_rq->last_load_update_tick = jiffies;
-	__update_cpu_load(this_rq, this_rq->load.weight, 1);
+	update_cpu_load(this_rq);
 
 	calc_load_account_active(this_rq);
 }
@@ -3446,6 +3391,9 @@ need_resched:
 		 */
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
+#ifdef CONFIG_SEC_DEBUG
+		sec_debug_task_sched_log(cpu, rq->curr);
+#endif
 	} else
 		raw_spin_unlock_irq(&rq->lock);
 
@@ -5336,17 +5284,27 @@ void idle_task_exit(void)
 }
 
 /*
- * Since this CPU is going 'away' for a while, fold any nr_active delta
- * we might have. Assumes we're called after migrate_tasks() so that the
- * nr_active count is stable.
- *
- * Also see the comment "Global load-average calculations".
+ * While a dead CPU has no uninterruptible tasks queued at this point,
+ * it might still have a nonzero ->nr_uninterruptible counter, because
+ * for performance reasons the counter is not stricly tracking tasks to
+ * their home CPUs. So we just add the counter to another CPU's counter,
+ * to keep the global sum constant after CPU-down:
  */
-static void calc_load_migrate(struct rq *rq)
+static void migrate_nr_uninterruptible(struct rq *rq_src)
 {
-	long delta = calc_load_fold_active(rq);
-	if (delta)
-		atomic_long_add(delta, &calc_load_tasks);
+	struct rq *rq_dest = cpu_rq(cpumask_any(cpu_active_mask));
+
+	rq_dest->nr_uninterruptible += rq_src->nr_uninterruptible;
+	rq_src->nr_uninterruptible = 0;
+}
+
+/*
+ * remove the tasks which were accounted by rq from calc_load_tasks.
+ */
+static void calc_global_load_remove(struct rq *rq)
+{
+	atomic_long_sub(rq->calc_load_active, &calc_load_tasks);
+	rq->calc_load_active = 0;
 }
 
 /*
@@ -5639,18 +5597,9 @@ migration_call(struct notifier_block *nfb, unsigned long action, void *hcpu)
 		migrate_tasks(cpu);
 		BUG_ON(rq->nr_running != 1); /* the migration thread */
 		raw_spin_unlock_irqrestore(&rq->lock, flags);
-		break;
 
-	case CPU_DEAD:
-		{
-			struct rq *dest_rq;
-
-			local_irq_save(flags);
-			dest_rq = cpu_rq(smp_processor_id());
-			raw_spin_lock(&dest_rq->lock);
-			calc_load_migrate(rq);
-			raw_spin_unlock_irqrestore(&dest_rq->lock, flags);
-		}
+		migrate_nr_uninterruptible(rq);
+		calc_global_load_remove(rq);
 		break;
 #endif
 	}
@@ -6044,11 +5993,6 @@ static void destroy_sched_domains(struct sched_domain *sd, int cpu)
  * SD_SHARE_PKG_RESOURCE set (Last Level Cache Domain) for this
  * allows us to avoid some pointer chasing select_idle_sibling().
  *
- * Iterate domains and sched_groups downward, assigning CPUs to be
- * select_idle_sibling() hw buddy.  Cross-wiring hw makes bouncing
- * due to random perturbation self canceling, ie sw buddies pull
- * their counterpart to their CPU's hw counterpart.
- *
  * Also keep a unique ID per domain (we use the first cpu number in
  * the cpumask of the domain), this allows us to quickly tell if
  * two cpus are in the same cache domain, see cpus_share_cache().
@@ -6062,40 +6006,8 @@ static void update_top_cache_domain(int cpu)
 	int id = cpu;
 
 	sd = highest_flag_domain(cpu, SD_SHARE_PKG_RESOURCES);
-	if (sd) {
-		struct sched_domain *tmp = sd;
-		struct sched_group *sg, *prev;
-		bool right;
-
-		/*
-		 * Traverse to first CPU in group, and count hops
-		 * to cpu from there, switching direction on each
-		 * hop, never ever pointing the last CPU rightward.
-		 */
-		do {
-			id = cpumask_first(sched_domain_span(tmp));
-			prev = sg = tmp->groups;
-			right = 1;
-
-			while (cpumask_first(sched_group_cpus(sg)) != id)
-				sg = sg->next;
-
-			while (!cpumask_test_cpu(cpu, sched_group_cpus(sg))) {
-				prev = sg;
-				sg = sg->next;
-				right = !right;
-			}
-
-			/* A CPU went down, never point back to domain start. */
-			if (right && cpumask_first(sched_group_cpus(sg->next)) == id)
-				right = false;
-
-			sg = right ? sg->next : prev;
-			tmp->idle_buddy = cpumask_first(sched_group_cpus(sg));
-		} while ((tmp = tmp->child));
-
+	if (sd)
 		id = cpumask_first(sched_domain_span(sd));
-	}
 
 	rcu_assign_pointer(per_cpu(sd_llc, cpu), sd);
 	per_cpu(sd_llc_id, cpu) = id;
@@ -7181,6 +7093,13 @@ void __init sched_init(void)
 	int i, j;
 	unsigned long alloc_size = 0, ptr;
 
+#ifdef CONFIG_SEC_DEBUG
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	sec_gaf_supply_rqinfo(offsetof(struct rq, curr),
+			offsetof(struct cfs_rq, rq));
+#endif
+#endif
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	alloc_size += 2 * nr_cpu_ids * sizeof(void **);
 #endif
@@ -7350,7 +7269,6 @@ void __init sched_init(void)
 	/* May be allocated at isolcpus cmdline parse time */
 	if (cpu_isolated_map == NULL)
 		zalloc_cpumask_var(&cpu_isolated_map, GFP_NOWAIT);
-	idle_thread_set_boot_cpu();
 #endif
 	init_sched_fair_class();
 

@@ -960,6 +960,7 @@ static int cpufreq_add_dev(struct device *dev, struct subsys_interface *sif)
 	struct cpufreq_policy *policy;
 	unsigned long flags;
 	unsigned int j;
+	
 #ifdef CONFIG_HOTPLUG_CPU
 	int sibling;
 #endif
@@ -1736,6 +1737,16 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 {
 	int ret = 0;
 
+	struct cpufreq_policy *cpu0_policy;
+	if(data->cpu >= 1){
+		pr_debug("forcing cpu0 policy on cpu\n");
+		cpu0_policy = cpufreq_cpu_get(0); // force cpu1 to follow policy of cpu0
+		policy->min = cpu0_policy->min;
+		policy->max = cpu0_policy->max;
+		if(cpu0_policy->user_policy.governor){
+			policy->governor = cpu0_policy->user_policy.governor;
+		}    
+	}
 	pr_debug("setting new policy for CPU %u: %u - %u kHz\n", policy->cpu,
 		policy->min, policy->max);
 

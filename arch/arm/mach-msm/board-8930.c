@@ -584,7 +584,7 @@ static void __init reserve_ion_memory(void)
 
 			if (fixed_position != NOT_FIXED)
 				fixed_size += heap->size;
-			else
+			else if (!use_cma)
 				reserve_mem_for_ion(MEMTYPE_EBI1, heap->size);
 
 			if (fixed_position == FIXED_LOW) {
@@ -783,7 +783,7 @@ static struct wcd9xxx_pdata sitar_platform_data = {
 	.regulator = {
 	{
 		.name = "CDC_VDD_CP",
-		.min_uV = 1800000,
+		.min_uV = 2200000,
 		.max_uV = 2200000,
 		.optimum_uA = WCD9XXX_CDC_VDDA_CP_CUR_MAX,
 	},
@@ -849,7 +849,7 @@ static struct wcd9xxx_pdata sitar1p1_platform_data = {
 	.regulator = {
 	{
 		.name = "CDC_VDD_CP",
-		.min_uV = 1800000,
+		.min_uV = 2200000,
 		.max_uV = 2200000,
 		.optimum_uA = WCD9XXX_CDC_VDDA_CP_CUR_MAX,
 	},
@@ -2467,6 +2467,7 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm_tsens_device,
 	&msm8930_cache_dump_device,
 	&msm8930_pc_cntr,
+	&msm8930_cpu_slp_status,
 };
 
 static struct platform_device *cdp_devices[] __initdata = {
@@ -2846,10 +2847,33 @@ static void __init register_i2c_devices(void)
 #endif
 }
 
+/*Modify the WCD9xxx platform data to support supplies from PM8917 */
+static void __init msm8930_pm8917_wcd9xxx_pdata_fixup(
+		struct wcd9xxx_pdata *cdc_pdata)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cdc_pdata->regulator); i++) {
+
+		if (cdc_pdata->regulator[i].name != NULL
+			&& strncmp(cdc_pdata->regulator[i].name,
+				"CDC_VDD_CP", 10) == 0) {
+			cdc_pdata->regulator[i].min_uV =
+				cdc_pdata->regulator[i].max_uV = 1800000;
+			pr_info("%s: CDC_VDD_CP forced to 1.8 volts for PM8917\n",
+				__func__);
+			return;
+		}
+	}
+}
+
 /* Modify platform data values to match requirements for PM8917. */
 static void __init msm8930_pm8917_pdata_fixup(void)
 {
 	struct acpuclk_platform_data *pdata;
+
+	msm8930_pm8917_wcd9xxx_pdata_fixup(&sitar_platform_data);
+	msm8930_pm8917_wcd9xxx_pdata_fixup(&sitar1p1_platform_data);
 
 	mhl_platform_data.gpio_mhl_power = MHL_POWER_GPIO_PM8917;
 
@@ -3015,8 +3039,17 @@ static void __init msm8930_cdp_init(void)
 	else
 		platform_add_devices(pmic_pm8917_devices,
 					ARRAY_SIZE(pmic_pm8917_devices));
-	if(machine_is_msm8930_evt())
-                qcom_wcnss_pdata.has_48mhz_xo = 0;
+
+	if (machine_is_msm8930_evt()) {
+	        /* It is QRD Device, clock should be set appropraitely */
+		if ((SOCINFO_VERSION_MAJOR(socinfo_get_platform_version()) == 1)
+		&& (SOCINFO_VERSION_MINOR(socinfo_get_platform_version()) == 1))
+			/* For evt2a, which supports 48 MHz */
+			qcom_wcnss_pdata.has_48mhz_xo = 1;
+		else
+			/* Assuming all other versions do not support 48MHz */
+			qcom_wcnss_pdata.has_48mhz_xo = 0;
+	}
 	platform_add_devices(common_devices, ARRAY_SIZE(common_devices));
 	if (machine_is_msm8930_evt() &&
 		(socinfo_get_platform_subtype() == PLATFORM_SUBTYPE_SGLTE)) {

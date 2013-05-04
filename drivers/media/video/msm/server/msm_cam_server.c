@@ -448,8 +448,11 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	} while (1);
 	D("Waiting is over for config status\n");
 	if (list_empty_careful(&queue->list)) {
-		if (!rc)
+		if (!rc) {
 			rc = -ETIMEDOUT;
+			msm_drain_eventq(
+			&server_dev->server_queue[out->queue_idx].eventData_q);
+		}
 		if (rc < 0) {
 			if (++server_dev->server_evt_id == 0)
 				server_dev->server_evt_id++;
@@ -486,6 +489,7 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	return rc;
 
 ctrlcmd_alloc_fail:
+	mutex_unlock(&server_dev->server_queue_lock);
 	kfree(isp_event);
 isp_event_alloc_fail:
 	kfree(event_qcmd);
@@ -1794,6 +1798,10 @@ static void msm_cam_server_subdev_notify(struct v4l2_subdev *sd,
 	case NOTIFY_VFE_MSG_COMP_STATS:
 	case NOTIFY_VFE_BUF_EVT:
 		p_mctl = msm_cam_server_get_mctl(mctl_handle);
+		if (p_mctl == NULL) {
+			pr_err("%s: Not find p_mctl instance!\n", __func__);
+			return;
+		}
 		if (p_mctl && p_mctl->isp_notify && p_mctl->vfe_sdev)
 			rc = p_mctl->isp_notify(p_mctl,
 				p_mctl->vfe_sdev, notification, arg);
@@ -2733,6 +2741,7 @@ int msm_server_send_ctrl(struct msm_ctrl_cmd *out,
 	return rc;
 
 ctrlcmd_alloc_fail:
+	mutex_unlock(&server_dev->server_queue_lock);
 	kfree(isp_event);
 isp_event_alloc_fail:
 	kfree(event_qcmd);
