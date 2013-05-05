@@ -71,7 +71,11 @@ Required properties:
 - qcom,ldo-delta-voltage:	The delta used to reduce the requested voltage in order
 				to derive the LDO output voltage while switching
 				to LDO mode. Acceptable values are from 1000uV to 100000uV
+<<<<<<< HEAD
 >>>>>>> 2477481... msm: krait-regulator: set LDO 50mV below the requested voltage
+=======
+- qcom,cpu-num:			Indicates what cpu this regulator controls
+>>>>>>> 9e71e8e... msm: krait-regulator: turn off mdd when ldo is not used
 
 Any property defined as part of the core regulator
 binding, defined in regulator.txt, can also be used.
@@ -119,6 +123,10 @@ Example:
 >>>>>>> 9b97466... msm: krait-regulator: Use default parameters from the device tree
 =======
 		qcom,ldo-delta-voltage = <50000>;
+<<<<<<< HEAD
 >>>>>>> 2477481... msm: krait-regulator: set LDO 50mV below the requested voltage
+=======
+		qcom,cpu-num = 0;
+>>>>>>> 9e71e8e... msm: krait-regulator: turn off mdd when ldo is not used
 	};
 

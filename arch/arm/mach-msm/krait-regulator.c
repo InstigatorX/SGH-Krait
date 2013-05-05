@@ -27,9 +27,11 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/krait-regulator.h>
+#include <linux/debugfs.h>
 #include <mach/msm_iomap.h>
 
 #include "spm.h"
+#include "pm.h"
 
 /*
  *                   supply
@@ -68,6 +70,7 @@
 
 #define BHS_SETTLING_DELAY_US		1
 #define LDO_SETTLING_DELAY_US		1
+#define MDD_SETTLING_DELAY_US		5
 
 #define _KRAIT_MASK(BITS, POS)  (((u32)(1 << (BITS)) - 1) << POS)
 #define KRAIT_MASK(LEFT_BIT_POS, RIGHT_BIT_POS) \
@@ -119,6 +122,18 @@
 #define VREF_LDO_BIT_POS	0
 #define VREF_LDO_MASK		KRAIT_MASK(6, 0)
 
+#define LDO_HDROOM_MIN		50000
+#define LDO_HDROOM_MAX		250000
+
+#define LDO_UV_MIN		465000
+#define LDO_UV_MAX		750000
+
+#define LDO_TH_MIN		600000
+#define LDO_TH_MAX		900000
+
+#define LDO_DELTA_MIN		10000
+#define LDO_DELTA_MAX		100000
+
 /**
  * struct pmic_gang_vreg -
  * @name:			the string used to represent the gang
@@ -138,6 +153,8 @@ struct pmic_gang_vreg {
 	struct list_head	krait_power_vregs;
 	struct mutex		krait_power_vregs_lock;
 	bool			pfm_mode;
+	int			pmic_min_uV_for_retention;
+	bool			retention_enabled;
 };
 
 static struct pmic_gang_vreg *the_gang;
@@ -163,10 +180,22 @@ struct krait_power_vreg {
 	int				headroom_uV;
 	int				ldo_threshold_uV;
 	int				ldo_delta_uV;
+	int				cpu_num;
 	bool				online;
 };
 
+DEFINE_PER_CPU(struct krait_power_vreg *, krait_vregs);
+
 static u32 version;
+
+static int is_between(int left, int right, int value)
+{
+	if (left >= right && left >= value && value >= right)
+		return 1;
+	if (left <= right && left <= value && value <= right)
+		return 1;
+	return 0;
+}
 
 static void krait_masked_write(struct krait_power_vreg *kvreg,
 					int reg, uint32_t mask, uint32_t val)
@@ -184,6 +213,23 @@ static void krait_masked_write(struct krait_power_vreg *kvreg,
 	 * order to the above write.
 	 */
 	mb();
+}
+
+static int get_krait_retention_ldo_uv(struct krait_power_vreg *kvreg)
+{
+	uint32_t reg_val;
+	int uV;
+
+	reg_val = readl_relaxed(kvreg->reg_base + APC_LDO_VREF_SET);
+	reg_val &= VREF_RET_MASK;
+	reg_val >>= VREF_RET_POS;
+
+	if (reg_val == 0)
+		uV = 0;
+	else
+		uV = KRAIT_LDO_VOLTAGE_OFFSET + reg_val * KRAIT_LDO_STEP;
+
+	return uV;
 }
 
 static int get_krait_ldo_uv(struct krait_power_vreg *kvreg)
@@ -225,6 +271,40 @@ static int set_krait_ldo_uv(struct krait_power_vreg *kvreg, int uV)
 	return 0;
 }
 
+static int __krait_power_mdd_enable(struct krait_power_vreg *kvreg, bool on)
+{
+	if (on) {
+		writel_relaxed(0x00000002, kvreg->mdd_base + MDD_MODE);
+		/* complete the above write before the delay */
+		mb();
+		udelay(MDD_SETTLING_DELAY_US);
+	} else {
+		writel_relaxed(0x00000000, kvreg->mdd_base + MDD_MODE);
+		/*
+		 * complete the above write before other accesses
+		 * to krait regulator
+		 */
+		mb();
+	}
+	return 0;
+}
+
+int krait_power_mdd_enable(int cpu_num, bool on)
+{
+	struct krait_power_vreg *kvreg = per_cpu(krait_vregs, cpu_num);
+
+	if (!on && kvreg->mode == LDO_MODE) {
+		pr_debug("%s using LDO - cannot turn off MDD\n", kvreg->name);
+		return -EINVAL;
+	}
+
+	if ((on && kvreg->mode == LDO_MODE) || (!on && kvreg->mode == HS_MODE))
+		return 0;
+
+	__krait_power_mdd_enable(kvreg, on);
+	return 0;
+}
+
 static int switch_to_using_hs(struct krait_power_vreg *kvreg)
 {
 	if (kvreg->mode == HS_MODE)
@@ -254,6 +334,8 @@ static int switch_to_using_hs(struct krait_power_vreg *kvreg)
 	krait_masked_write(kvreg, APC_PWR_GATE_CTL,
 				LDO_PWR_DWN_MASK, LDO_PWR_DWN_MASK);
 
+	/* turn off MDD since LDO is not used */
+	__krait_power_mdd_enable(kvreg, false);
 	kvreg->mode = HS_MODE;
 	pr_debug("%s using BHS\n", kvreg->name);
 	return 0;
@@ -271,6 +353,9 @@ static int switch_to_using_ldo(struct krait_power_vreg *kvreg)
 	 */
 	if (kvreg->mode == LDO_MODE)
 		switch_to_using_hs(kvreg);
+
+	/* turn on MDD since LDO is being turned on */
+	__krait_power_mdd_enable(kvreg, true);
 
 	set_krait_ldo_uv(kvreg, kvreg->uV - kvreg->ldo_delta_uV);
 
@@ -328,6 +413,22 @@ static int set_pmic_gang_voltage(struct pmic_gang_vreg *pvreg, int uV)
 		pr_err("requested %d > %d, restricting it to %d\n",
 				uV, PMIC_VOLTAGE_MAX, PMIC_VOLTAGE_MAX);
 		uV = PMIC_VOLTAGE_MAX;
+	}
+
+	if (uV < pvreg->pmic_min_uV_for_retention) {
+		if (pvreg->retention_enabled) {
+			pr_debug("Disabling Retention pmic = %duV, pmic_min_uV_for_retention = %duV",
+					uV, pvreg->pmic_min_uV_for_retention);
+			msm_pm_enable_retention(false);
+			pvreg->retention_enabled = false;
+		}
+	} else {
+		if (!pvreg->retention_enabled) {
+			pr_debug("Enabling Retention pmic = %duV, pmic_min_uV_for_retention = %duV",
+					uV, pvreg->pmic_min_uV_for_retention);
+			msm_pm_enable_retention(true);
+			pvreg->retention_enabled = true;
+		}
 	}
 
 	setpoint = DIV_ROUND_UP(uV, LV_RANGE_STEP);
@@ -485,6 +586,8 @@ static int __devinit pvreg_init(struct platform_device *pdev)
 	pvreg->name = "pmic_gang";
 	pvreg->pmic_vmax_uV = PMIC_VOLTAGE_MIN;
 	pvreg->pmic_phase_count = 1;
+	pvreg->retention_enabled = true;
+	pvreg->pmic_min_uV_for_retention = INT_MAX;
 
 	mutex_init(&pvreg->krait_power_vregs_lock);
 	INIT_LIST_HEAD(&pvreg->krait_power_vregs);
@@ -743,6 +846,43 @@ static struct regulator_ops krait_power_ops = {
 	.is_enabled		= krait_power_is_enabled,
 };
 
+static struct dentry *dent;
+static int get_retention_dbg_uV(void *data, u64 *val)
+{
+	struct pmic_gang_vreg *pvreg = data;
+	struct krait_power_vreg *kvreg;
+
+	mutex_lock(&pvreg->krait_power_vregs_lock);
+	if (!list_empty(&pvreg->krait_power_vregs)) {
+		/* return the retention voltage on just the first cpu */
+		kvreg = list_entry((&pvreg->krait_power_vregs)->next,
+			typeof(*kvreg), link);
+		*val = get_krait_retention_ldo_uv(kvreg);
+	}
+	mutex_unlock(&pvreg->krait_power_vregs_lock);
+	return 0;
+}
+
+static int set_retention_dbg_uV(void *data, u64 val)
+{
+	struct pmic_gang_vreg *pvreg = data;
+	struct krait_power_vreg *kvreg;
+	int retention_uV = val;
+
+	if (!is_between(LDO_UV_MIN, LDO_UV_MAX, retention_uV))
+		return -EINVAL;
+
+	mutex_lock(&pvreg->krait_power_vregs_lock);
+	list_for_each_entry(kvreg, &pvreg->krait_power_vregs, link) {
+		kvreg->retention_uV = retention_uV;
+		set_krait_retention_uv(kvreg, retention_uV);
+	}
+	mutex_unlock(&pvreg->krait_power_vregs_lock);
+	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(retention_fops,
+			get_retention_dbg_uV, set_retention_dbg_uV, "%llu\n");
+
 static void kvreg_hw_init(struct krait_power_vreg *kvreg)
 {
 	/*
@@ -768,27 +908,6 @@ static void glb_init(struct platform_device *pdev)
 	pr_debug("version= 0x%x\n", version);
 }
 
-static int is_between(int left, int right, int value)
-{
-	if (left >= right && left >= value && value >= right)
-		return 1;
-	if (left <= right && left <= value && value <= right)
-		return 1;
-	return 0;
-}
-
-#define LDO_HDROOM_MIN		50000
-#define LDO_HDROOM_MAX		250000
-
-#define LDO_UV_MIN		465000
-#define LDO_UV_MAX		750000
-
-#define LDO_TH_MIN		600000
-#define LDO_TH_MAX		900000
-
-#define LDO_DELTA_MIN		10000
-#define LDO_DELTA_MAX		100000
-
 static int __devinit krait_power_probe(struct platform_device *pdev)
 {
 	struct krait_power_vreg *kvreg;
@@ -797,6 +916,7 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 	int rc = 0;
 	int headroom_uV, retention_uV, ldo_default_uV, ldo_threshold_uV;
 	int ldo_delta_uV;
+	int cpu_num;
 
 	/* Initialize the pmic gang if it hasn't been initialized already */
 	if (the_gang == NULL) {
@@ -808,6 +928,12 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 		}
 		/* global initializtion */
 		glb_init(pdev);
+	}
+
+	if (dent == NULL) {
+		dent = debugfs_create_dir(KRAIT_REGULATOR_DRIVER_NAME, NULL);
+		debugfs_create_file("retention_uV",
+				0644, dent, the_gang, &retention_fops);
 	}
 
 	if (pdev->dev.of_node) {
@@ -885,6 +1011,13 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 					ldo_delta_uV);
 			return -EINVAL;
 		}
+		rc = of_property_read_u32(pdev->dev.of_node,
+					"qcom,cpu-num",
+					&cpu_num);
+		if (cpu_num > num_possible_cpus()) {
+			pr_err("bad cpu-num= %d specified\n", cpu_num);
+			return -EINVAL;
+		}
 	}
 
 	if (!init_data) {
@@ -937,10 +1070,14 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 	kvreg->ldo_default_uV	= ldo_default_uV;
 	kvreg->ldo_threshold_uV = ldo_threshold_uV;
 	kvreg->ldo_delta_uV	= ldo_delta_uV;
+	kvreg->cpu_num		= cpu_num;
 
 	platform_set_drvdata(pdev, kvreg);
 
 	mutex_lock(&the_gang->krait_power_vregs_lock);
+	the_gang->pmic_min_uV_for_retention
+		= min(the_gang->pmic_min_uV_for_retention,
+			kvreg->retention_uV + kvreg->headroom_uV);
 	list_add_tail(&kvreg->link, &the_gang->krait_power_vregs);
 	mutex_unlock(&the_gang->krait_power_vregs_lock);
 
@@ -953,6 +1090,7 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 	}
 
 	kvreg_hw_init(kvreg);
+	per_cpu(krait_vregs, cpu_num) = kvreg;
 	dev_dbg(&pdev->dev, "id=%d, name=%s\n", pdev->id, kvreg->name);
 
 	return 0;

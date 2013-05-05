@@ -418,6 +418,7 @@
 		qcom,ldo-default-voltage = <750000>;
 		qcom,ldo-threshold-voltage = <850000>;
 		qcom,ldo-delta-voltage = <50000>;
+		qcom,cpu-num = <0>;
 	};
 
 	krait1_vreg: regulator@f9098000 {
@@ -433,6 +434,7 @@
 		qcom,ldo-default-voltage = <750000>;
 		qcom,ldo-threshold-voltage = <850000>;
 		qcom,ldo-delta-voltage = <50000>;
+		qcom,cpu-num = <1>;
 	};
 
 	krait2_vreg: regulator@f90a8000 {
@@ -448,6 +450,7 @@
 		qcom,ldo-default-voltage = <750000>;
 		qcom,ldo-threshold-voltage = <850000>;
 		qcom,ldo-delta-voltage = <50000>;
+		qcom,cpu-num = <2>;
 	};
 
 	krait3_vreg: regulator@f90b8000 {
@@ -463,5 +466,6 @@
 		qcom,ldo-default-voltage = <750000>;
 		qcom,ldo-threshold-voltage = <850000>;
 		qcom,ldo-delta-voltage = <50000>;
+		qcom,cpu-num = <3>;
 	};
 };
