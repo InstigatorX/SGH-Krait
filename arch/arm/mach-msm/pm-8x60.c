@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,9 +24,7 @@
 #include <linux/smp.h>
 #include <linux/suspend.h>
 #include <linux/tick.h>
-#include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/of_platform.h>
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
 #include <mach/system.h>
@@ -37,7 +35,7 @@
 #include <asm/hardware/gic.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
-#include <asm/hardware/cache-l2x0.h>
+#include <asm/outercache.h>
 #ifdef CONFIG_VFP
 #include <asm/vfp.h>
 #endif
@@ -48,16 +46,13 @@
 #include <mach/cpuidle.h>
 #include "idle.h"
 #include "pm.h"
-#include "rpm_resources.h"
 #include "scm-boot.h"
 #include "spm.h"
 #include "timer.h"
 #include "pm-boot.h"
 #include <mach/event_timer.h>
-#ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
-#endif
-
+#define CREATE_TRACE_POINTS
+#include "trace_msm_low_power.h"
 /******************************************************************************
  * Debug Definitions
  *****************************************************************************/
@@ -120,9 +115,10 @@ static char *msm_pm_sleep_mode_labels[MSM_PM_SLEEP_MODE_NR] = {
 		"standalone_power_collapse",
 };
 
+static struct msm_pm_init_data_type msm_pm_init_data;
 static struct hrtimer pm_hrtimer;
 static struct msm_pm_sleep_ops pm_sleep_ops;
-static struct msm_pm_sleep_status_data *msm_pm_slp_sts;
+static bool msm_pm_ldo_retention_enabled = true;
 /*
  * Write out the attribute.
  */
@@ -479,9 +475,6 @@ static void msm_pm_restore_cpu_reg(void)
 	}
 }
 
-static void *msm_pm_idle_rs_limits;
-static bool msm_pm_use_qtimer;
-
 static void msm_pm_swfi(void)
 {
 	msm_pm_config_hw_before_swfi();
@@ -506,38 +499,12 @@ static void msm_pm_retention(void)
 	msm_pm_config_hw_after_retention();
 }
 
-#ifdef CONFIG_CACHE_L2X0
-static inline bool msm_pm_l2x0_power_collapse(void)
-{
-	bool collapsed = 0;
-
-	l2cc_suspend();
-	collapsed = msm_pm_collapse();
-	l2cc_resume();
-
-	return collapsed;
-}
-#else
-static inline bool msm_pm_l2x0_power_collapse(void)
-{
-	return msm_pm_collapse();
-}
-#endif
-
-#ifdef CONFIG_SEC_DEBUG
-static int debug_power_collaspe_status[2] = {0};
-#endif
-
 static bool __ref msm_pm_spm_power_collapse(
 	unsigned int cpu, bool from_idle, bool notify_rpm)
 {
 	void *entry;
 	bool collapsed = 0;
 	int ret;
-	unsigned int saved_gic_cpu_ctrl;
-
-	saved_gic_cpu_ctrl = readl_relaxed(MSM_QGIC_CPU_BASE + GIC_CPU_CTRL);
-	mb();
 
 	if (MSM_PM_DEBUG_POWER_COLLAPSE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: notify_rpm %d\n",
@@ -555,31 +522,12 @@ static bool __ref msm_pm_spm_power_collapse(
 		pr_info("CPU%u: %s: program vector to %p\n",
 			cpu, __func__, entry);
 
-#ifdef CONFIG_VFP
-	vfp_pm_suspend();
-#endif
+	collapsed = msm_pm_collapse();
 
-#ifdef CONFIG_SEC_DEBUG
-	debug_power_collaspe_status[smp_processor_id()] =
-			(from_idle<<8)|(notify_rpm<<4)|1;
-	secdbg_sched_msg("+pc(I:%d,R:%d)", from_idle, notify_rpm);
-#endif
-	collapsed = msm_pm_l2x0_power_collapse();
-#ifdef CONFIG_SEC_DEBUG
-	secdbg_sched_msg("-pc(%d)", collapsed);
-	debug_power_collaspe_status[smp_processor_id()] = 0;
-#endif
 	msm_pm_boot_config_after_pc(cpu);
 
 	if (collapsed) {
-#ifdef CONFIG_VFP
-		vfp_pm_resume();
-#endif
 		cpu_init();
-		writel(0xF0, MSM_QGIC_CPU_BASE + GIC_CPU_PRIMASK);
-		writel_relaxed(saved_gic_cpu_ctrl,
-				MSM_QGIC_CPU_BASE + GIC_CPU_CTRL);
-		mb();
 		local_fiq_enable();
 	}
 
@@ -685,14 +633,11 @@ static void msm_pm_target_init(void)
 {
 	if (cpu_is_apq8064())
 		msm_pm_save_cp15 = true;
-
-	if (cpu_is_msm8974())
-		msm_pm_use_qtimer = true;
 }
 
 static int64_t msm_pm_timer_enter_idle(void)
 {
-	if (msm_pm_use_qtimer)
+	if (msm_pm_init_data.use_sync_timer)
 		return ktime_to_ns(tick_nohz_get_sleep_length());
 
 	return msm_timer_enter_idle();
@@ -700,7 +645,7 @@ static int64_t msm_pm_timer_enter_idle(void)
 
 static void msm_pm_timer_exit_idle(bool timer_halted)
 {
-	if (msm_pm_use_qtimer)
+	if (msm_pm_init_data.use_sync_timer)
 		return;
 
 	msm_timer_exit_idle((int) timer_halted);
@@ -710,8 +655,8 @@ static int64_t msm_pm_timer_enter_suspend(int64_t *period)
 {
 	int64_t time = 0;
 
-	if (msm_pm_use_qtimer)
-		return sched_clock();
+	if (msm_pm_init_data.use_sync_timer)
+		return ktime_to_ns(ktime_get());
 
 	time = msm_timer_get_sclk_time(period);
 	if (!time)
@@ -722,8 +667,8 @@ static int64_t msm_pm_timer_enter_suspend(int64_t *period)
 
 static int64_t msm_pm_timer_exit_suspend(int64_t time, int64_t period)
 {
-	if (msm_pm_use_qtimer)
-		return sched_clock() - time;
+	if (msm_pm_init_data.use_sync_timer)
+		return ktime_to_ns(ktime_get()) - time;
 
 	if (time != 0) {
 		int64_t end_time = msm_timer_get_sclk_time(NULL);
@@ -769,12 +714,58 @@ void arch_idle(void)
 	return;
 }
 
-int msm_pm_idle_prepare(struct cpuidle_device *dev,
-		struct cpuidle_driver *drv, int index)
+static inline void msm_pm_ftrace_lpm_enter(unsigned int cpu,
+		uint32_t latency, uint32_t sleep_us,
+		uint32_t wake_up,
+		enum msm_pm_sleep_mode mode)
+{
+	switch (mode) {
+	case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
+		trace_msm_pm_enter_wfi(cpu, latency, sleep_us, wake_up);
+		break;
+	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
+		trace_msm_pm_enter_spc(cpu, latency, sleep_us, wake_up);
+		break;
+	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
+		trace_msm_pm_enter_pc(cpu, latency, sleep_us, wake_up);
+		break;
+	case MSM_PM_SLEEP_MODE_RETENTION:
+		trace_msm_pm_enter_ret(cpu, latency, sleep_us, wake_up);
+		break;
+	default:
+		break;
+	}
+}
+
+static inline void msm_pm_ftrace_lpm_exit(unsigned int cpu,
+		enum msm_pm_sleep_mode mode,
+		bool success)
+{
+	switch (mode) {
+	case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
+		trace_msm_pm_exit_wfi(cpu, success);
+		break;
+	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
+		trace_msm_pm_exit_spc(cpu, success);
+		break;
+	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
+		trace_msm_pm_exit_pc(cpu, success);
+		break;
+	case MSM_PM_SLEEP_MODE_RETENTION:
+		trace_msm_pm_exit_ret(cpu, success);
+		break;
+	default:
+		break;
+	}
+}
+
+static int msm_pm_idle_prepare(struct cpuidle_device *dev,
+		struct cpuidle_driver *drv, int index,
+		void **msm_pm_idle_rs_limits)
 {
 	int i;
 	unsigned int power_usage = -1;
-	int ret = 0;
+	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 	uint32_t modified_time_us = 0;
 	struct msm_pm_time_params time_param;
 
@@ -797,7 +788,6 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		struct cpuidle_state_usage *st_usage = &dev->states_usage[i];
 		enum msm_pm_sleep_mode mode;
 		bool allow;
-		void *rs_limits = NULL;
 		uint32_t power;
 		int idx;
 
@@ -815,6 +805,14 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 			}
 			/* fall through */
 		case MSM_PM_SLEEP_MODE_RETENTION:
+			/*
+			 * The Krait BHS regulator doesn't have enough head
+			 * room to drive the retention voltage on LDO and so
+			 * has disabled retention
+			 */
+			if (!msm_pm_ldo_retention_enabled)
+				break;
+
 			if (!allow)
 				break;
 
@@ -828,11 +826,6 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
 			if (!allow)
 				break;
-
-			if (!dev->cpu && msm_rpm_local_request_is_outstanding()) {
-				allow = false;
-				break;
-			}
 			/* fall through */
 
 		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
@@ -841,17 +834,20 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 			/* fall through */
 
 			if (pm_sleep_ops.lowest_limits)
-				rs_limits = pm_sleep_ops.lowest_limits(true,
-						mode, &time_param, &power);
+				*msm_pm_idle_rs_limits =
+					pm_sleep_ops.lowest_limits(
+						true, mode,
+						&time_param, &power);
 
 			if (MSM_PM_DEBUG_IDLE & msm_pm_debug_mask)
 				pr_info("CPU%u: %s: %s, latency %uus, "
 					"sleep %uus, limit %p\n",
 					dev->cpu, __func__, state->desc,
 					time_param.latency_us,
-					time_param.sleep_us, rs_limits);
+					time_param.sleep_us,
+					*msm_pm_idle_rs_limits);
 
-			if (!rs_limits)
+			if (!*msm_pm_idle_rs_limits)
 				allow = false;
 			break;
 
@@ -871,20 +867,40 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				ret = mode;
 			}
 
-			if (MSM_PM_SLEEP_MODE_POWER_COLLAPSE == mode)
-				msm_pm_idle_rs_limits = rs_limits;
 		}
 	}
 
 	if (modified_time_us && !dev->cpu)
 		msm_pm_set_timer(modified_time_us);
+
+	msm_pm_ftrace_lpm_enter(dev->cpu, time_param.latency_us,
+			time_param.sleep_us, time_param.next_event_us,
+			ret);
+
 	return ret;
 }
 
-int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
+enum msm_pm_sleep_mode msm_pm_idle_enter(struct cpuidle_device *dev,
+	struct cpuidle_driver *drv, int index)
 {
 	int64_t time;
-	int exit_stat;
+	bool collapsed = 1;
+	int exit_stat = -1;
+	enum msm_pm_sleep_mode sleep_mode;
+	void *msm_pm_idle_rs_limits = NULL;
+	int sleep_delay = 1;
+	int ret = -ENODEV;
+	int64_t timer_expiration = 0;
+	int notify_rpm = false;
+	bool timer_halted = false;
+
+	sleep_mode = msm_pm_idle_prepare(dev, drv, index,
+		&msm_pm_idle_rs_limits);
+
+	if (!msm_pm_idle_rs_limits) {
+		sleep_mode = MSM_PM_SLEEP_MODE_NOT_SELECTED;
+		goto cpuidle_enter_bail;
+	}
 
 	if (MSM_PM_DEBUG_IDLE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: mode %d\n",
@@ -892,97 +908,80 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 
 	time = ktime_to_ns(ktime_get());
 
-	switch (sleep_mode) {
-	case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
-		msm_pm_swfi();
-		exit_stat = MSM_PM_STAT_IDLE_WFI;
-		break;
-
-	case MSM_PM_SLEEP_MODE_RETENTION:
-		msm_pm_retention();
-		exit_stat = MSM_PM_STAT_RETENTION;
-		break;
-
-	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
-		msm_pm_power_collapse_standalone(true);
-		exit_stat = MSM_PM_STAT_IDLE_STANDALONE_POWER_COLLAPSE;
-		break;
-
-	case MSM_PM_SLEEP_MODE_POWER_COLLAPSE: {
-		int64_t timer_expiration = 0;
-		bool timer_halted = false;
-		uint32_t sleep_delay;
-		int ret = -ENODEV;
-		int notify_rpm =
-			(sleep_mode == MSM_PM_SLEEP_MODE_POWER_COLLAPSE);
-		int collapsed;
-
+	if (sleep_mode == MSM_PM_SLEEP_MODE_POWER_COLLAPSE) {
+		notify_rpm = true;
 		timer_expiration = msm_pm_timer_enter_idle();
 
 		sleep_delay = (uint32_t) msm_pm_convert_and_cap_time(
 			timer_expiration, MSM_PM_SLEEP_TICK_LIMIT);
 		if (sleep_delay == 0) /* 0 would mean infinite time */
 			sleep_delay = 1;
+	}
 
-		if (MSM_PM_DEBUG_IDLE_CLK & msm_pm_debug_mask)
-			clock_debug_print_enabled();
+	if (pm_sleep_ops.enter_sleep)
+		ret = pm_sleep_ops.enter_sleep(sleep_delay,
+			msm_pm_idle_rs_limits,
+			true, notify_rpm);
+	if (!ret) {
 
-		if (pm_sleep_ops.enter_sleep)
-			ret = pm_sleep_ops.enter_sleep(sleep_delay,
-					msm_pm_idle_rs_limits,
-					true, notify_rpm);
-		if (!ret) {
+		switch (sleep_mode) {
+		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
+			msm_pm_swfi();
+			exit_stat = MSM_PM_STAT_IDLE_WFI;
+			break;
+
+		case MSM_PM_SLEEP_MODE_RETENTION:
+			msm_pm_retention();
+			exit_stat = MSM_PM_STAT_RETENTION;
+			break;
+
+		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
+			collapsed = msm_pm_power_collapse_standalone(true);
+			exit_stat = MSM_PM_STAT_IDLE_STANDALONE_POWER_COLLAPSE;
+			break;
+
+		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
+			if (MSM_PM_DEBUG_IDLE_CLK & msm_pm_debug_mask)
+				clock_debug_print_enabled();
+
 			collapsed = msm_pm_power_collapse(true);
 			timer_halted = true;
 
-			if (pm_sleep_ops.exit_sleep)
-				pm_sleep_ops.exit_sleep(msm_pm_idle_rs_limits,
-						true, notify_rpm, collapsed);
+			exit_stat = MSM_PM_STAT_IDLE_POWER_COLLAPSE;
+			msm_pm_timer_exit_idle(timer_halted);
+			break;
+
+		case MSM_PM_SLEEP_MODE_NOT_SELECTED:
+			goto cpuidle_enter_bail;
+			break;
+
+		default:
+			__WARN();
+			goto cpuidle_enter_bail;
+			break;
 		}
+		if (pm_sleep_ops.exit_sleep)
+			pm_sleep_ops.exit_sleep(msm_pm_idle_rs_limits,
+					true, notify_rpm, collapsed);
+
+		time = ktime_to_ns(ktime_get()) - time;
+		msm_pm_ftrace_lpm_exit(smp_processor_id(), sleep_mode,
+					collapsed);
+		if (exit_stat >= 0)
+			msm_pm_add_stat(exit_stat, time);
+		do_div(time, 1000);
+		dev->last_residency = (int) time;
+		return sleep_mode;
+
+	} else if (sleep_mode == MSM_PM_SLEEP_MODE_POWER_COLLAPSE) {
 		msm_pm_timer_exit_idle(timer_halted);
-		exit_stat = MSM_PM_STAT_IDLE_POWER_COLLAPSE;
-		break;
-	}
-
-	default:
-		__WARN();
-		goto cpuidle_enter_bail;
-	}
-
-	time = ktime_to_ns(ktime_get()) - time;
-	msm_pm_add_stat(exit_stat, time);
-
-	do_div(time, 1000);
-	return (int) time;
+		sleep_mode = MSM_PM_SLEEP_MODE_NOT_SELECTED;
+	} else
+		sleep_mode = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 
 cpuidle_enter_bail:
-	return 0;
-}
-
-int msm_pm_wait_cpu_shutdown(unsigned int cpu)
-{
-	int timeout = 10;
-
-	if (!msm_pm_slp_sts)
-		return 0;
-	if (!msm_pm_slp_sts[cpu].base_addr)
-		return 0;
-	while (timeout--) {
-		/*
-		 * Check for the SPM of the core being hotplugged to set
-		 * its sleep state.The SPM sleep state indicates that the
-		 * core has been power collapsed.
-		 */
-		int acc_sts = __raw_readl(msm_pm_slp_sts[cpu].base_addr);
-
-		if (acc_sts & msm_pm_slp_sts[cpu].mask)
-			return 0;
-		udelay(100);
-	}
-
-	pr_info("%s(): Timed out waiting for CPU %u SPM to enter sleep state",
-		__func__, cpu);
-	return -EBUSY;
+	dev->last_residency = 0;
+	return sleep_mode;
 }
 
 void msm_pm_cpu_enter_lowpower(unsigned int cpu)
@@ -1009,6 +1008,34 @@ void msm_pm_cpu_enter_lowpower(unsigned int cpu)
 	else
 		msm_pm_swfi();
 }
+
+static void msm_pm_ack_retention_disable(void *data)
+{
+	/*
+	 * This is a NULL function to ensure that the core has woken up
+	 * and is safe to disable retention.
+	 */
+}
+/**
+ * msm_pm_enable_retention() - Disable/Enable retention on all cores
+ * @enable: Enable/Disable retention
+ *
+ */
+void msm_pm_enable_retention(bool enable)
+{
+	msm_pm_ldo_retention_enabled = enable;
+	/*
+	 * If retention is being disabled, wakeup all online core to ensure
+	 * that it isn't executing retention. Offlined cores need not be woken
+	 * up as they enter the deepest sleep mode, namely RPM assited power
+	 * collapse
+	 */
+	if (!enable)
+		smp_call_function_many(cpu_online_mask,
+				msm_pm_ack_retention_disable,
+				NULL, true);
+}
+EXPORT_SYMBOL(msm_pm_enable_retention);
 
 static int msm_pm_enter(suspend_state_t state)
 {
@@ -1149,93 +1176,6 @@ static struct of_device_id msm_pc_debug_table[] = {
 	{.compatible = "qcom,pc-cntr"},
 	{},
 };
-static int __devinit msm_cpu_status_probe(struct platform_device *pdev)
-{
-	struct msm_pm_sleep_status_data *pdata;
-	char *key;
-	u32 cpu;
-
-	if (!pdev)
-		return -EFAULT;
-
-	msm_pm_slp_sts =
-		kzalloc(sizeof(*msm_pm_slp_sts) * num_possible_cpus(),
-				GFP_KERNEL);
-
-	if (!msm_pm_slp_sts)
-		return -ENOMEM;
-
-	if (pdev->dev.of_node) {
-		struct resource *res;
-		u32 offset;
-		int rc;
-		u32 mask;
-
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		if (!res)
-			goto fail_free_mem;
-
-		key = "qcom,cpu-alias-addr";
-		rc = of_property_read_u32(pdev->dev.of_node, key, &offset);
-
-		if (rc)
-			goto fail_free_mem;
-
-		key = "qcom,sleep-status-mask";
-		rc = of_property_read_u32(pdev->dev.of_node, key,
-					&mask);
-		if (rc)
-			goto fail_free_mem;
-
-		for_each_possible_cpu(cpu) {
-			msm_pm_slp_sts[cpu].base_addr =
-				ioremap(res->start + cpu * offset,
-					resource_size(res));
-			msm_pm_slp_sts[cpu].mask = mask;
-
-			if (!msm_pm_slp_sts[cpu].base_addr)
-				goto failed_of_node;
-		}
-
-	} else {
-		pdata = pdev->dev.platform_data;
-		if (!pdev->dev.platform_data)
-			goto fail_free_mem;
-
-		for_each_possible_cpu(cpu) {
-			msm_pm_slp_sts[cpu].base_addr =
-				pdata->base_addr + cpu * pdata->cpu_offset;
-			msm_pm_slp_sts[cpu].mask = pdata->mask;
-		}
-	}
-
-	return 0;
-
-failed_of_node:
-	pr_info("%s(): Failed to key=%s\n", __func__, key);
-	for_each_possible_cpu(cpu) {
-		if (msm_pm_slp_sts[cpu].base_addr)
-			iounmap(msm_pm_slp_sts[cpu].base_addr);
-	}
-fail_free_mem:
-	kfree(msm_pm_slp_sts);
-	return -EINVAL;
-
-};
-
-static struct of_device_id msm_slp_sts_match_tbl[] = {
-	{.compatible = "qcom,cpu-sleep-status"},
-	{},
-};
-
-static struct platform_driver msm_cpu_status_driver = {
-	.probe = msm_cpu_status_probe,
-	.driver = {
-		.name = "cpu_slp_status",
-		.owner = THIS_MODULE,
-		.of_match_table = msm_slp_sts_match_tbl,
-	},
-};
 
 static struct platform_driver msm_pc_counter_driver = {
 	.probe = msm_pc_debug_probe,
@@ -1246,11 +1186,18 @@ static struct platform_driver msm_pc_counter_driver = {
 	},
 };
 
-static int __init msm_pm_setup_saved_state(void)
+static int __init msm_pm_init(void)
 {
 	pgd_t *pc_pgd;
 	pmd_t *pmd;
 	unsigned long pmdval;
+	enum msm_pm_time_stats_id enable_stats[] = {
+		MSM_PM_STAT_IDLE_WFI,
+		MSM_PM_STAT_RETENTION,
+		MSM_PM_STAT_IDLE_STANDALONE_POWER_COLLAPSE,
+		MSM_PM_STAT_IDLE_POWER_COLLAPSE,
+		MSM_PM_STAT_SUSPEND,
+	};
 	unsigned long exit_phys;
 
 	/* Page table for cores to come back up safely. */
@@ -1291,22 +1238,6 @@ static int __init msm_pm_setup_saved_state(void)
 	clean_caches((unsigned long)&msm_pm_pc_pgd, sizeof(msm_pm_pc_pgd),
 		     virt_to_phys(&msm_pm_pc_pgd));
 
-	return 0;
-}
-core_initcall(msm_pm_setup_saved_state);
-
-static int __init msm_pm_init(void)
-{
-	int rc;
-
-	enum msm_pm_time_stats_id enable_stats[] = {
-		MSM_PM_STAT_IDLE_WFI,
-		MSM_PM_STAT_RETENTION,
-		MSM_PM_STAT_IDLE_STANDALONE_POWER_COLLAPSE,
-		MSM_PM_STAT_IDLE_POWER_COLLAPSE,
-		MSM_PM_STAT_SUSPEND,
-	};
-
 	msm_pm_mode_sysfs_add();
 	msm_pm_add_stats(enable_stats, ARRAY_SIZE(enable_stats));
 
@@ -1315,16 +1246,78 @@ static int __init msm_pm_init(void)
 	hrtimer_init(&pm_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
 	msm_cpuidle_init();
 	platform_driver_register(&msm_pc_counter_driver);
-	rc = platform_driver_register(&msm_cpu_status_driver);
-
-	if (rc) {
-		pr_err("%s(): failed to register driver %s\n", __func__,
-				msm_cpu_status_driver.driver.name);
-		return rc;
-	}
-
 
 	return 0;
 }
 
 late_initcall(msm_pm_init);
+
+static void __devinit msm_pm_set_flush_fn(uint32_t pc_mode)
+{
+	msm_pm_disable_l2_fn = NULL;
+	msm_pm_enable_l2_fn = NULL;
+	msm_pm_flush_l2_fn = outer_flush_all;
+
+	if (pc_mode == MSM_PM_PC_NOTZ_L2_EXT) {
+		msm_pm_disable_l2_fn = outer_disable;
+		msm_pm_enable_l2_fn = outer_resume;
+	}
+}
+
+static int __devinit msm_pm_8x60_probe(struct platform_device *pdev)
+{
+	char *key = NULL;
+	uint32_t val = 0;
+	int ret = 0;
+
+	if (!pdev->dev.of_node) {
+		struct msm_pm_init_data_type *d = pdev->dev.platform_data;
+
+		if (!d)
+			goto pm_8x60_probe_done;
+
+		msm_pm_init_data.pc_mode = d->pc_mode;
+		msm_pm_set_flush_fn(msm_pm_init_data.pc_mode);
+		msm_pm_init_data.use_sync_timer = d->use_sync_timer;
+	} else {
+		key = "qcom,pc-mode";
+		ret = of_property_read_u32(pdev->dev.of_node, key, &val);
+
+		if (ret) {
+			pr_debug("%s: Cannot read %s,defaulting to 0",
+					__func__, key);
+			val = MSM_PM_PC_TZ_L2_INT;
+			ret = 0;
+		}
+
+		msm_pm_init_data.pc_mode = val;
+		msm_pm_set_flush_fn(msm_pm_init_data.pc_mode);
+
+		key = "qcom,use-sync-timer";
+		msm_pm_init_data.use_sync_timer =
+			of_property_read_bool(pdev->dev.of_node, key);
+	}
+
+pm_8x60_probe_done:
+	return ret;
+}
+
+static struct of_device_id msm_pm_8x60_table[] = {
+		{.compatible = "qcom,pm-8x60"},
+		{},
+};
+
+static struct platform_driver msm_pm_8x60_driver = {
+		.probe = msm_pm_8x60_probe,
+		.driver = {
+			.name = "pm-8x60",
+			.owner = THIS_MODULE,
+			.of_match_table = msm_pm_8x60_table,
+		},
+};
+
+static int __init msm_pm_8x60_init(void)
+{
+	return platform_driver_register(&msm_pm_8x60_driver);
+}
+module_init(msm_pm_8x60_init);

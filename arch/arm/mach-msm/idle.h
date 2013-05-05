@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2009,2012 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2007-2009,2012 Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,8 +14,13 @@
 #ifndef _ARCH_ARM_MACH_MSM_IDLE_H_
 #define _ARCH_ARM_MACH_MSM_IDLE_H_
 
+#ifdef CONFIG_MSM_CPU_AVS
+/* 11 general purpose registers (r4-r14), 10 cp15 registers, 3 AVS registers */
+#define CPU_SAVED_STATE_SIZE (4 * 11 + 4 * 10 + 4 * 3)
+#else
 /* 11 general purpose registers (r4-r14), 10 cp15 registers */
 #define CPU_SAVED_STATE_SIZE (4 * 11 + 4 * 10)
+#endif
 
 #define ON	1
 #define OFF	0
@@ -28,6 +33,9 @@ int msm_arch_idle(void);
 int msm_pm_collapse(void);
 void msm_pm_collapse_exit(void);
 extern void *msm_saved_state;
+extern void (*msm_pm_disable_l2_fn)(void);
+extern void (*msm_pm_enable_l2_fn)(void);
+extern void (*msm_pm_flush_l2_fn)(void);
 extern unsigned long msm_saved_state_phys;
 
 #ifdef CONFIG_CPU_V7

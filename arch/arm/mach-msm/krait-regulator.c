@@ -27,6 +27,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/krait-regulator.h>
+#include <mach/msm_iomap.h>
 
 #include "spm.h"
 
@@ -55,15 +56,9 @@
  *           |_________________|
  */
 
-#define V_RETENTION			600000
-#define V_LDO_HEADROOM			150000
-
 #define PMIC_VOLTAGE_MIN		350000
 #define PMIC_VOLTAGE_MAX		1355000
 #define LV_RANGE_STEP			5000
-
-/* use LDO for core voltage below LDO_THRESH */
-#define CORE_VOLTAGE_LDO_THRESH		750000
 
 #define LOAD_PER_PHASE			3200000
 
@@ -87,6 +82,11 @@
 #define CPU_TRGTD_DBG_RST	0x00000010
 #define APC_PWR_GATE_CTL	0x00000014
 #define APC_LDO_VREF_SET	0x00000018
+#define APC_PWR_GATE_MODE	0x0000001C
+#define APC_PWR_GATE_DLY	0x00000020
+
+#define PWR_GATE_CONFIG		0x00000044
+#define VERSION			0x00000FD0
 
 /* bit definitions for APC_PWR_GATE_CTL */
 #define BHS_CNT_BIT_POS		24
@@ -135,6 +135,7 @@ struct pmic_gang_vreg {
 	int			pmic_phase_count;
 	struct list_head	krait_power_vregs;
 	struct mutex		krait_power_vregs_lock;
+	bool			pfm_mode;
 };
 
 static struct pmic_gang_vreg *the_gang;
@@ -154,7 +155,13 @@ struct krait_power_vreg {
 	int				load_uA;
 	enum krait_supply_mode		mode;
 	void __iomem			*reg_base;
+	int				ldo_default_uV;
+	int				retention_uV;
+	int				headroom_uV;
+	int				ldo_threshold_uV;
 };
+
+static u32 version;
 
 static void krait_masked_write(struct krait_power_vreg *kvreg,
 					int reg, uint32_t mask, uint32_t val)
@@ -191,11 +198,22 @@ static int get_krait_ldo_uv(struct krait_power_vreg *kvreg)
 	return uV;
 }
 
-static int set_krait_ldo_uv(struct krait_power_vreg *kvreg)
+static int set_krait_retention_uv(struct krait_power_vreg *kvreg, int uV)
 {
 	uint32_t reg_val;
 
-	reg_val = kvreg->uV - KRAIT_LDO_VOLTAGE_OFFSET / KRAIT_LDO_STEP;
+	reg_val = DIV_ROUND_UP(uV - KRAIT_LDO_VOLTAGE_OFFSET, KRAIT_LDO_STEP);
+	krait_masked_write(kvreg, APC_LDO_VREF_SET, VREF_RET_MASK,
+						reg_val << VREF_RET_POS);
+
+	return 0;
+}
+
+static int set_krait_ldo_uv(struct krait_power_vreg *kvreg, int uV)
+{
+	uint32_t reg_val;
+
+	reg_val = DIV_ROUND_UP(uV - KRAIT_LDO_VOLTAGE_OFFSET, KRAIT_LDO_STEP);
 	krait_masked_write(kvreg, APC_LDO_VREF_SET, VREF_LDO_MASK,
 						reg_val << VREF_LDO_BIT_POS);
 
@@ -243,7 +261,7 @@ static int switch_to_using_ldo(struct krait_power_vreg *kvreg)
 	if (kvreg->mode == LDO_MODE)
 		switch_to_using_hs(kvreg);
 
-	set_krait_ldo_uv(kvreg);
+	set_krait_ldo_uv(kvreg, kvreg->uV);
 
 	/*
 	 * enable ldo - note that both LDO and BHS are are supplying voltage to
@@ -301,8 +319,8 @@ static int configure_ldo_or_hs(struct krait_power_vreg *from, int vmax)
 	int rc = 0;
 
 	list_for_each_entry(kvreg, &pvreg->krait_power_vregs, link) {
-		if (kvreg->uV > CORE_VOLTAGE_LDO_THRESH
-			 || kvreg->uV > vmax - V_LDO_HEADROOM) {
+		if (kvreg->uV > kvreg->ldo_threshold_uV
+			 || kvreg->uV > vmax - kvreg->headroom_uV) {
 			rc = switch_to_using_hs(kvreg);
 			if (rc < 0) {
 				pr_err("could not switch %s to hs rc = %d\n",
@@ -501,7 +519,7 @@ static int krait_power_set_voltage(struct regulator_dev *rdev,
 	 * switch to LDO mode. Hence round the voltage as per the LDO
 	 * resolution
 	 */
-	if (min_uV < CORE_VOLTAGE_LDO_THRESH) {
+	if (min_uV < kvreg->ldo_threshold_uV) {
 		if (min_uV < KRAIT_LDO_VOLTAGE_MIN)
 			min_uV = KRAIT_LDO_VOLTAGE_MIN;
 		min_uV = ROUND_UP_VOLTAGE(min_uV, KRAIT_LDO_STEP);
@@ -534,6 +552,9 @@ out:
 	return rc;
 }
 
+#define PMIC_FTS_MODE_PFM	0x00
+#define PMIC_FTS_MODE_PWM	0x80
+#define PFM_LOAD_UA		500000
 static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 			int input_uV, int output_uV, int load_uA)
 {
@@ -545,9 +566,39 @@ static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 
 	mutex_lock(&pvreg->krait_power_vregs_lock);
 
+	reg_mode = kvreg->mode;
+
 	kvreg->load_uA = load_uA;
 
 	load_total_uA = get_total_load(kvreg);
+
+	if (load_total_uA < PFM_LOAD_UA) {
+		if (!pvreg->pfm_mode) {
+			rc = msm_spm_enable_fts_lpm(PMIC_FTS_MODE_PFM);
+			if (rc) {
+				dev_err(&rdev->dev,
+					"%s enter PFM failed load %d rc = %d\n",
+					kvreg->name, load_total_uA, rc);
+				goto out;
+			} else {
+				pvreg->pfm_mode = true;
+			}
+		}
+		mutex_unlock(&pvreg->krait_power_vregs_lock);
+		return reg_mode;
+	}
+
+	if (pvreg->pfm_mode) {
+		rc = msm_spm_enable_fts_lpm(PMIC_FTS_MODE_PWM);
+		if (rc) {
+			dev_err(&rdev->dev,
+				"%s exit PFM failed load %d rc = %d\n",
+				kvreg->name, load_total_uA, rc);
+			goto out;
+		} else {
+			pvreg->pfm_mode = false;
+		}
+	}
 
 	rc = pmic_gang_set_phases(kvreg, load_total_uA);
 	if (rc < 0) {
@@ -556,7 +607,6 @@ static unsigned int krait_power_get_optimum_mode(struct regulator_dev *rdev,
 		goto out;
 	}
 
-	reg_mode = kvreg->mode;
 out:
 	mutex_unlock(&pvreg->krait_power_vregs_lock);
 	return reg_mode;
@@ -597,7 +647,37 @@ static void kvreg_hw_init(struct krait_power_vreg *kvreg)
 	/* BHS has six different segments, turn them all on */
 	krait_masked_write(kvreg, APC_PWR_GATE_CTL,
 		BHS_SEG_EN_MASK, BHS_SEG_EN_DEFAULT << BHS_SEG_EN_BIT_POS);
+
+	set_krait_retention_uv(kvreg, kvreg->retention_uV);
+	set_krait_ldo_uv(kvreg, kvreg->ldo_default_uV);
 }
+
+static void glb_init(struct platform_device *pdev)
+{
+	/* configure bi-modal switch */
+	writel_relaxed(0x0008736E, MSM_APCS_GCC_BASE + PWR_GATE_CONFIG);
+	/* read kpss version */
+	version = readl_relaxed(MSM_APCS_GCC_BASE + VERSION);
+	pr_debug("version= 0x%x\n", version);
+}
+
+static int is_between(int left, int right, int value)
+{
+	if (left >= right && left >= value && value >= right)
+		return 1;
+	if (left <= right && left <= value && value <= right)
+		return 1;
+	return 0;
+}
+
+#define LDO_HDROOM_MIN		50000
+#define LDO_HDROOM_MAX		250000
+
+#define LDO_UV_MIN		465000
+#define LDO_UV_MAX		750000
+
+#define LDO_TH_MIN		600000
+#define LDO_TH_MAX		800000
 
 static int __devinit krait_power_probe(struct platform_device *pdev)
 {
@@ -605,6 +685,7 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct regulator_init_data *init_data = pdev->dev.platform_data;
 	int rc = 0;
+	int headroom_uV, retention_uV, ldo_default_uV, ldo_threshold_uV;
 
 	/* Initialize the pmic gang if it hasn't been initialized already */
 	if (the_gang == NULL) {
@@ -614,6 +695,8 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 				"failed to init pmic gang rc = %d\n", rc);
 			return rc;
 		}
+		/* global initializtion */
+		glb_init(pdev);
 	}
 
 	if (pdev->dev.of_node) {
@@ -627,6 +710,57 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 			|= REGULATOR_MODE_NORMAL | REGULATOR_MODE_IDLE
 			| REGULATOR_MODE_FAST;
 		init_data->constraints.input_uV = init_data->constraints.max_uV;
+		rc = of_property_read_u32(pdev->dev.of_node,
+					"qcom,headroom-voltage",
+					&headroom_uV);
+		if (rc < 0) {
+			pr_err("headroom-voltage missing rc=%d\n", rc);
+			return rc;
+		}
+		if (!is_between(LDO_HDROOM_MIN, LDO_HDROOM_MAX, headroom_uV)) {
+			pr_err("bad headroom-voltage = %d specified\n",
+					headroom_uV);
+			return -EINVAL;
+		}
+
+		rc = of_property_read_u32(pdev->dev.of_node,
+					"qcom,retention-voltage",
+					&retention_uV);
+		if (rc < 0) {
+			pr_err("retention-voltage missing rc=%d\n", rc);
+			return rc;
+		}
+		if (!is_between(LDO_UV_MIN, LDO_UV_MAX, retention_uV)) {
+			pr_err("bad retention-voltage = %d specified\n",
+					retention_uV);
+			return -EINVAL;
+		}
+
+		rc = of_property_read_u32(pdev->dev.of_node,
+					"qcom,ldo-default-voltage",
+					&ldo_default_uV);
+		if (rc < 0) {
+			pr_err("ldo-default-voltage missing rc=%d\n", rc);
+			return rc;
+		}
+		if (!is_between(LDO_UV_MIN, LDO_UV_MAX, ldo_default_uV)) {
+			pr_err("bad ldo-default-voltage = %d specified\n",
+					ldo_default_uV);
+			return -EINVAL;
+		}
+
+		rc = of_property_read_u32(pdev->dev.of_node,
+					"qcom,ldo-threshold-voltage",
+					&ldo_threshold_uV);
+		if (rc < 0) {
+			pr_err("ldo-threshold-voltage missing rc=%d\n", rc);
+			return rc;
+		}
+		if (!is_between(LDO_TH_MIN, LDO_TH_MAX, ldo_threshold_uV)) {
+			pr_err("bad ldo-threshold-voltage = %d specified\n",
+					ldo_threshold_uV);
+			return -EINVAL;
+		}
 	}
 
 	if (!init_data) {
@@ -656,15 +790,19 @@ static int __devinit krait_power_probe(struct platform_device *pdev)
 	kvreg->reg_base = devm_ioremap(&pdev->dev,
 				res->start, resource_size(res));
 
-	kvreg->pvreg	  = the_gang;
-	kvreg->name	  = init_data->constraints.name;
-	kvreg->desc.name  = kvreg->name;
-	kvreg->desc.ops   = &krait_power_ops;
-	kvreg->desc.type  = REGULATOR_VOLTAGE;
-	kvreg->desc.owner = THIS_MODULE;
-	kvreg->uV	  = CORE_VOLTAGE_MIN;
-	kvreg->mode	  = HS_MODE;
-	kvreg->desc.ops   = &krait_power_ops;
+	kvreg->pvreg		= the_gang;
+	kvreg->name		= init_data->constraints.name;
+	kvreg->desc.name	= kvreg->name;
+	kvreg->desc.ops		= &krait_power_ops;
+	kvreg->desc.type	= REGULATOR_VOLTAGE;
+	kvreg->desc.owner	= THIS_MODULE;
+	kvreg->uV		= CORE_VOLTAGE_MIN;
+	kvreg->mode		= HS_MODE;
+	kvreg->desc.ops		= &krait_power_ops;
+	kvreg->headroom_uV	= headroom_uV;
+	kvreg->retention_uV	= retention_uV;
+	kvreg->ldo_default_uV	= ldo_default_uV;
+	kvreg->ldo_threshold_uV = ldo_threshold_uV;
 
 	platform_set_drvdata(pdev, kvreg);
 
@@ -738,8 +876,10 @@ void secondary_cpu_hs_init(void *base_ptr)
 {
 	/* 605mV retention and 705mV operational voltage */
 	writel_relaxed(0x1C30, base_ptr + APC_LDO_VREF_SET);
-	writel_relaxed(0x430000, base_ptr + 0x20);
-	writel_relaxed(0x21, base_ptr + 0x1C);
+	/* HS_EN_DLY=3; LDO_BYP_DLY=1; */
+	writel_relaxed(0x430000, base_ptr + APC_PWR_GATE_DLY);
+	/* MODE = BHS; EN=1; */
+	writel_relaxed(0x21, base_ptr + APC_PWR_GATE_MODE);
 
 	/* Turn on the BHS, turn off LDO Bypass and power down LDO */
 	writel_relaxed(0x403F007F, base_ptr + APC_PWR_GATE_CTL);
