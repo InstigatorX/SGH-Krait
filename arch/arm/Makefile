@@ -57,7 +57,7 @@ comma = ,
 # Note that GCC does not numerically define an architecture version
 # macro, but instead defines a whole series of macros which makes
 # testing for a specific architecture or later rather impossible.
-arch-$(CONFIG_CPU_32v7)		:=-D__LINUX_ARM_ARCH__=7 $(call cc-option,-mcpu=cortex-a15 -mfpu=neon -ftree-vectorize -Wa$(comma)-march=armv7-a)
+arch-$(CONFIG_CPU_32v7)    :=-D__LINUX_ARM_ARCH__=7 $(call cc-option,-march=armv7-a,-march=armv5t -Wa$(comma)-march=armv7-a)
 arch-$(CONFIG_CPU_32v6)		:=-D__LINUX_ARM_ARCH__=6 $(call cc-option,-march=armv6,-march=armv5t -Wa$(comma)-march=armv6)
 # Only override the compiler option if ARMv6. The ARMv6K extensions are
 # always available in ARMv7
@@ -119,7 +119,7 @@ KBUILD_AFLAGS	+=$(CFLAGS_ABI) $(AFLAGS_THUMB2) $(arch-y) $(tune-y) -include asm/
 CHECKFLAGS	+= -D__arm__
 
 #Default value
-head-y		:= arch/arm/kernel/head$(MMUEXT).o arch/arm/kernel/init_task.o
+head-y    := arch/arm/kernel/head$(MMUEXT).o arch/arm/kernel/init_task.o
 textofs-y	:= 0x00008000
 textofs-$(CONFIG_ARCH_CLPS711X) := 0x00028000
 # We don't want the htc bootloader to corrupt kernel during resume
