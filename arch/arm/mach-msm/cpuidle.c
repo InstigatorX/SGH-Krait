@@ -80,7 +80,8 @@ static int msm_cpuidle_enter(
 	cpu_pm_enter();
 #endif
 
-	pm_mode = msm_pm_idle_enter(dev, drv, index);
+	pm_mode = msm_pm_idle_prepare(dev, drv, index);
+	dev->last_residency = msm_pm_idle_enter(pm_mode);
 	for (i = 0; i < dev->state_count; i++) {
 		st_usage = &dev->states_usage[i];
 		if ((enum msm_pm_sleep_mode) cpuidle_get_statedata(st_usage)
@@ -99,7 +100,7 @@ static int msm_cpuidle_enter(
 	return ret;
 }
 
-static void __init msm_cpuidle_set_states(void)
+static void __devinit msm_cpuidle_set_states(void)
 {
 	int i = 0;
 	int state_count = 0;
@@ -155,7 +156,7 @@ static void __init msm_cpuidle_set_cpu_statedata(struct cpuidle_device *dev)
 	dev->state_count = state_count; /* Per cpu state count */
 }
 
-int __init msm_cpuidle_init(void)
+int __devinit msm_cpuidle_init(void)
 {
 	unsigned int cpu = 0;
 	int ret = 0;

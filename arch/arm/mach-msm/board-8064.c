@@ -2377,6 +2377,106 @@ static struct platform_device gpio_ir_recv_pdev = {
 static struct platform_device *common_not_mpq_devices[] __initdata = {
 	&apq8064_device_qup_i2c_gsbi1,
 	&apq8064_device_qup_i2c_gsbi3,
+	&apq8064_device_qup_i2c_gsbi4,
+};
+
+static struct platform_device *common_mpq_devices[] __initdata = {
+	&mpq_cpudai_sec_i2s_rx,
+	&mpq_cpudai_mi2s_tx,
+	&mpq_cpudai_pseudo,
+};
+
+static struct platform_device *ep_devices[] __initdata = {
+	&msm_device_smd_apq8064,
+	&apq8064_device_gadget_peripheral,
+	&apq8064_device_hsusb_host,
+	&android_usb_device,
+	&msm_device_wcnss_wlan,
+	&apq8064_fmem_device,
+#ifdef CONFIG_ANDROID_PMEM
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+	&apq8064_android_pmem_device,
+	&apq8064_android_pmem_adsp_device,
+	&apq8064_android_pmem_audio_device,
+#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
+#endif /*CONFIG_ANDROID_PMEM*/
+#ifdef CONFIG_ION_MSM
+	&apq8064_ion_dev,
+#endif
+	&msm8064_device_watchdog,
+	&msm8064_device_saw_regulator_core0,
+	&msm8064_device_saw_regulator_core1,
+	&msm8064_device_saw_regulator_core2,
+	&msm8064_device_saw_regulator_core3,
+#if defined(CONFIG_QSEECOM)
+	&qseecom_device,
+#endif
+
+	&msm_8064_device_tsif[0],
+	&msm_8064_device_tsif[1],
+
+#if defined(CONFIG_CRYPTO_DEV_QCRYPTO) || \
+		defined(CONFIG_CRYPTO_DEV_QCRYPTO_MODULE)
+	&qcrypto_device,
+#endif
+
+#if defined(CONFIG_CRYPTO_DEV_QCEDEV) || \
+		defined(CONFIG_CRYPTO_DEV_QCEDEV_MODULE)
+	&qcedev_device,
+#endif
+
+#ifdef CONFIG_HW_RANDOM_MSM
+	&apq8064_device_rng,
+#endif
+	&apq_pcm,
+	&apq_pcm_routing,
+	&apq8064_rpm_device,
+	&apq8064_rpm_log_device,
+	&apq8064_rpm_stat_device,
+	&apq8064_rpm_master_stat_device,
+	&apq_device_tz_log,
+	&msm_bus_8064_apps_fabric,
+	&msm_bus_8064_sys_fabric,
+	&msm_bus_8064_mm_fabric,
+	&msm_bus_8064_sys_fpb,
+	&msm_bus_8064_cpss_fpb,
+	&msm_pil_dsps,
+	&msm_8960_q6_lpass,
+	&apq8064_rtb_device,
+	&apq8064_dcvs_device,
+	&apq8064_msm_gov_device,
+	&apq8064_device_cache_erp,
+	&msm8960_device_ebi1_ch0_erp,
+	&msm8960_device_ebi1_ch1_erp,
+	&epm_adc_device,
+	&coresight_tpiu_device,
+	&coresight_etb_device,
+	&apq8064_coresight_funnel_device,
+	&coresight_etm0_device,
+	&coresight_etm1_device,
+	&coresight_etm2_device,
+	&coresight_etm3_device,
+#ifdef CONFIG_MSM_GEMINI
+	&msm8960_gemini_device,
+#endif
+	&msm_tsens_device,
+	&apq8064_cache_dump_device,
+	&msm_8064_device_tspp,
+#ifdef CONFIG_BATTERY_BCL
+	&battery_bcl_device,
+#endif
+	&apq8064_msm_mpd_device,
+	&apq8064_device_qup_i2c_gsbi1,
+	&apq8064_device_uart_gsbi2,
+	&apq8064_device_uart_gsbi1,
+	&apq8064_device_uart_gsbi4,
+	&msm_device_sps_apq8064,
+};
+
+static struct platform_device *common_i2s_devices[] __initdata = {
+	&apq_cpudai_mi2s,
+	&apq_cpudai_i2s_rx,
+	&apq_cpudai_i2s_tx,
 };
 
 static struct platform_device *early_common_devices[] __initdata = {
@@ -2529,8 +2629,7 @@ static struct platform_device *cdp_devices[] __initdata = {
 #ifdef CONFIG_MSM_ROTATOR
 	&msm_rotator_device,
 #endif
-	&msm8064_pc_cntr,
-	&msm8064_cpu_slp_status,
+	&msm8930_cpu_slp_status,
 };
 
 static struct platform_device
@@ -3350,6 +3449,18 @@ static void __init apq8064_common_init(void)
 		apq8064_init_dsps();
 		platform_device_register(&msm_8960_riva);
 	}
+	if (cpu_is_apq8064ab())
+		apq8064ab_update_krait_spm();
+	if (cpu_is_krait_v3()) {
+		struct msm_pm_init_data_type *pdata =
+			msm8064_pm_8x60.dev.platform_data;
+		pdata->retention_calls_tz = false;
+		apq8064ab_update_retention_spm();
+	}
+	platform_device_register(&msm8064_pm_8x60);
+
+	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
+	msm_spm_l2_init(msm_spm_l2_data);
 	BUG_ON(msm_pm_boot_init(&msm_pm_boot_pdata));
 	apq8064_epm_adc_init();
 }

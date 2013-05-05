@@ -103,8 +103,19 @@ enum msm_pm_pc_mode_type {
 					external L2 cache controller */
 };
 
+struct msm_pm_cp15_save_data {
+	bool save_cp15;
+	uint32_t active_vdd;
+	uint32_t qsb_pc_vdd;
+	uint32_t reg_saved_state_size;
+	uint32_t *reg_data;
+	uint32_t *reg_val;
+};
+
 struct msm_pm_init_data_type {
 	enum msm_pm_pc_mode_type pc_mode;
+	bool retention_calls_tz;
+	struct msm_pm_cp15_save_data cp15_data;
 	bool use_sync_timer;
 };
 
@@ -114,9 +125,10 @@ struct msm_pm_cpr_ops {
 };
 
 void msm_pm_set_platform_data(struct msm_pm_platform_data *data, int count);
-enum msm_pm_sleep_mode msm_pm_idle_enter(struct cpuidle_device *dev,
+int msm_pm_idle_prepare(struct cpuidle_device *dev,
 			struct cpuidle_driver *drv, int index);
 void msm_pm_set_irq_extns(struct msm_pm_irq_calls *irq_calls);
+int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode);
 void msm_pm_cpu_enter_lowpower(unsigned int cpu);
 void __init msm_pm_set_tz_retention_flag(unsigned int flag);
 void msm_pm_enable_retention(bool enable);

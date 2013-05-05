@@ -2465,8 +2465,7 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm8930_iommu_domain_device,
 	&msm_tsens_device,
 	&msm8930_cache_dump_device,
-	&msm8930_pc_cntr,
-	&msm8930_cpu_slp_status,
+	&msm8960_cpu_slp_status,
 };
 
 static struct platform_device *cdp_devices[] __initdata = {
@@ -3043,11 +3042,14 @@ static void __init msm8930_cdp_init(void)
 	msm8930_i2c_init();
 	msm8930_init_gpu();
 	if (cpu_is_krait_v3()) {
-		msm_pm_set_tz_retention_flag(0);
+		struct msm_pm_init_data_type *pdata =
+			msm8930_pm_8x60.dev.platform_data;
+		pdata->retention_calls_tz = false;
 		msm8930ab_update_retention_spm();
-	} else {
-		msm_pm_set_tz_retention_flag(1);
 	}
+
+	platform_device_register(&msm8930_pm_8x60);
+
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
 	msm8930_init_buses();
