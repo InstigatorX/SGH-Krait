@@ -476,26 +476,20 @@ static int __devinit msm_thermal_dev_probe(struct platform_device *pdev)
 
 	key = "qcom,core-limit-temp";
 	ret = of_property_read_u32(node, key, &data.core_limit_temp_degC);
-	if (ret)
-		goto fail;
-
+	
 	key = "qcom,core-temp-hysteresis";
 	ret = of_property_read_u32(node, key, &data.core_temp_hysteresis_degC);
-	if (ret)
-		goto fail;
-
+	
 	key = "qcom,core-control-mask";
 	ret = of_property_read_u32(node, key, &data.core_control_mask);
-	if (ret)
-		goto fail;
-
+	
+	ret = msm_thermal_init(&data);
+	
+	return ret;
 fail:
 	if (ret)
 		pr_err("%s: Failed reading node=%s, key=%s\n",
 		       __func__, node->full_name, key);
-	else
-		ret = msm_thermal_init(&data);
-
 	return ret;
 }
 
