@@ -1086,6 +1086,7 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 		ret = 0;
 
 done:
+	device->pwrctrl.irq_last = 0;
 
 	kfree(link);
 	return ret;
