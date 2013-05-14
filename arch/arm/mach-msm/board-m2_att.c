@@ -3479,6 +3479,13 @@ static uint8_t spm_retention_cmd_sequence[] __initdata = {
 	0x0B, 0x00, 0x0f,
 };
 
+static uint8_t spm_retention_with_krait_v3_cmd_sequence[] __initdata = {
+       0x42, 0x1B, 0x00,
+       0x05, 0x03, 0x0D, 0x0B,
+       0x00, 0x42, 0x1B,
+       0x0f,
+};
+
 static uint8_t spm_power_collapse_without_rpm[] __initdata = {
 	0x00, 0x24, 0x54, 0x10,
 	0x09, 0x03, 0x01,
@@ -4060,6 +4067,9 @@ static struct msm_thermal_data msm_thermal_pdata = {
 	.limit_temp_degC = 60,
 	.temp_hysteresis_degC = 10,
 	.freq_step = 2,
+	.core_limit_temp_degC = 90,
+	.core_temp_hysteresis_degC = 10,
+	.core_control_mask = 7,
 };
 
 /* Bluetooth */
@@ -5232,6 +5242,25 @@ static void __init msm8960_tsens_init(void)
 	msm_tsens_early_init(&msm_tsens_pdata);
 }
 
+ 
+static void __init msm8960ab_update_retention_spm(void)
+{
+       int i;
+
+       /* Update the SPM sequences for krait retention on all cores */
+       for (i = 0; i < ARRAY_SIZE(msm_spm_data); i++) {
+               int j;
+               struct msm_spm_platform_data *pdata = &msm_spm_data[i];
+               for (j = 0; j < pdata->num_modes; j++) {
+                       if (pdata->modes[j].cmd ==
+                                       spm_retention_cmd_sequence)
+                               pdata->modes[j].cmd =
+                               spm_retention_with_krait_v3_cmd_sequence;
+               }
+       }
+}
+
+
 static void __init samsung_m2_att_init(void)
 {
 #ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
@@ -5309,6 +5338,14 @@ static void __init samsung_m2_att_init(void)
 	msm8960_gfx_init();
 	if (cpu_is_msm8960ab())
 		msm8960ab_update_krait_spm();
+	if (cpu_is_krait_v3()) {
+		struct msm_pm_init_data_type *pdata =
+			msm8960_pm_8x60.dev.platform_data;
+		pdata->retention_calls_tz = false;
+		msm8960ab_update_retention_spm();
+	}
+	platform_device_register(&msm8960_pm_8x60);
+	
 	msm_spm_init(msm_spm_data, ARRAY_SIZE(msm_spm_data));
 	msm_spm_l2_init(msm_spm_l2_data);
 	msm8960_init_buses();
@@ -5386,7 +5423,6 @@ static void __init samsung_m2_att_init(void)
 	if (system_rev >= 0x3)
 		brcm_wlan_init();
 #endif
-	msm_pm_set_tz_retention_flag(1);
 
 	if (PLATFORM_IS_CHARM25())
 		platform_add_devices(mdm_devices, ARRAY_SIZE(mdm_devices));
