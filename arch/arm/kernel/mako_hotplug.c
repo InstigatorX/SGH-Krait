@@ -21,7 +21,7 @@
 #define SEC_THRESHOLD 2000
 #define HISTORY_SIZE 10
 #define DEFAULT_FIRST_LEVEL 80
-#define DEFAULT_SECOND_LEVEL 65
+#define DEFAULT_SECOND_LEVEL 60
 #define DEFAULT_THIRD_LEVEL 30
 #define DEFAULT_SUSPEND_FREQ 702000
 
@@ -45,63 +45,37 @@ unsigned int counter = 0;
 
 static void __cpuinit first_level_work_check(unsigned long temp_diff, unsigned long now, unsigned int load)
 {
-    unsigned int cpu = nr_cpu_ids;
+    unsigned int cpu = 1;
     
-    if (stats.online_cpus == 2 || (now - stats.time_stamp) >= temp_diff)
+    if ((now - stats.time_stamp) >= temp_diff)
     {
-        for_each_possible_cpu(cpu)
-        {
-            if (cpu && !cpu_online(cpu))
-            {
-            	cpu_up(cpu);
-                pr_info("Hotplug: cpu%d is up - high load - %d\n", cpu, load);
-             }
-        }
-        
-        /*
-         * new current time for comparison in the next load check
-         * we don't want too many hot[in]plugs in small time span
-         */
-        stats.time_stamp = now;
+        cpu_up(cpu);
+        stats.time_stamp = ktime_to_ms(ktime_get());;
+        pr_info("Hotplug: cpu%d is up - HIGH load - %d - Time - %ld\n", cpu, load, stats.time_stamp);
     }
 }
 
 static void second_level_work_check(unsigned long temp_diff, unsigned long now, unsigned int load)
 {
-    unsigned int cpu = nr_cpu_ids;
+    unsigned int cpu = 1;
     
     if ((now - stats.time_stamp) >= temp_diff)
     {
-        for_each_possible_cpu(cpu)
-        {
-            if (cpu && !cpu_online(cpu))
-            {
-                cpu_up(cpu);
-                pr_info("Hotplug: cpu%d is up - medium load - %d\n", cpu, load);
-                break;
-            }
-        }
-        
-        stats.time_stamp = now;
+ 		cpu_up(cpu);
+ 		stats.time_stamp = ktime_to_ms(ktime_get());;
+ 		pr_info("Hotplug: cpu%d is up - MED load - %d - Time - %ld\n", cpu, load, stats.time_stamp);
     }
 }
 
 static void third_level_work_check(unsigned long temp_diff, unsigned long now, unsigned int load)
 {
-    unsigned int cpu = nr_cpu_ids;
+    unsigned int cpu = 1;
     
     if ((now - stats.time_stamp) >= temp_diff)
     {
-        for_each_online_cpu(cpu)
-        {
-            if (cpu)
-            {
-                cpu_down(cpu);
-                pr_info("Hotplug: cpu%d is down - low load - %d\n", cpu, load);
-            }
-        }
-        
-        stats.time_stamp = now;
+    	cpu_down(cpu);
+    	stats.time_stamp = ktime_to_ms(ktime_get());;
+    	pr_info("Hotplug: cpu%d is down - LOW load - %d - Time - %ld\n", cpu, load, stats.time_stamp);
     }
 }
 
@@ -134,9 +108,9 @@ static void __cpuinit decide_hotplug_func(struct work_struct *work)
     stats.online_cpus = num_online_cpus();
     
     /* the load thresholds scale with the number of online cpus */
-    first_level = stats.default_first_level * stats.online_cpus;
-    second_level = stats.default_second_level * stats.online_cpus;
-    third_level = stats.default_third_level * stats.online_cpus;
+    first_level = stats.default_first_level;
+    second_level = stats.default_second_level;
+    third_level = stats.default_third_level;
     
     /*
     pr_info("LOAD: %d\n", load);
@@ -206,7 +180,7 @@ static void __cpuinit mako_hotplug_late_resume(struct early_suspend *handler)
     queue_delayed_work_on(0, wq, &decide_hotplug, HZ);
 }
 
-static struct early_suspend mako_hotplug_suspend =
+static struct early_suspend __cpuinitdata mako_hotplug_suspend =
 {
 	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1,
 	.suspend = mako_hotplug_early_suspend,
