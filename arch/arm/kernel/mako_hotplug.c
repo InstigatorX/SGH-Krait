@@ -151,6 +151,7 @@ static void __cpuinit decide_hotplug_func(struct work_struct *work)
     queue_delayed_work_on(0, wq, &decide_hotplug, msecs_to_jiffies(HZ));
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void mako_hotplug_early_suspend(struct early_suspend *handler)
 {	 
     /* cancel the hotplug work when the screen is off and flush the WQ */
@@ -186,6 +187,7 @@ static struct early_suspend __cpuinitdata mako_hotplug_suspend =
 	.suspend = mako_hotplug_early_suspend,
 	.resume = mako_hotplug_late_resume,
 };
+#endif
 
 /* sysfs functions for external driver */
 void update_first_level(unsigned int level)
