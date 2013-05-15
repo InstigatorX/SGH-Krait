@@ -5329,7 +5329,7 @@ static int find_new_ilb(int cpu)
 	int ilb = cpumask_first(nohz.idle_cpus_mask);
 	struct sched_group *ilbg;
 	struct sched_domain *sd;
-	int buddy = per_cpu(sd_pack_buddy, call_cpu);
+	int buddy = per_cpu(sd_pack_buddy, cpu);
 
 	/*
 	 * Have idle load balancer selection from semi-idle packages only

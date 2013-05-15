@@ -38,20 +38,6 @@
 
 struct msm_actuator_ctrl_t;
 
-struct region_params_t {
-	/* [0] = ForwardDirection Macro boundary
-	   [1] = ReverseDirection Inf boundary
-	 */
-	uint16_t step_bound[2];
-	uint16_t code_per_step;
-};
-
-struct damping_params_t {
-	uint16_t damping_step;
-	uint16_t damping_delay;
-	void *hw_params;
-};
-
 struct damping_t {
 	struct damping_params_t *ringing_params;
 };
