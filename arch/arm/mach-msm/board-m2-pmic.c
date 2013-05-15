@@ -450,7 +450,7 @@ static int pm8921_therm_mitigation[] = {
 static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 #ifdef CONFIG_PM8921_SEC_CHARGER
 	.safety_time		= 512, /* max */
-	.update_time		= 30000,
+	.update_time		= 60000,
 	.cool_temp		= 0,
 	.warm_temp		= 0,
 	.get_cable_type		= msm8960_get_cable_type,
