@@ -314,7 +314,7 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 	INIT_WORK(&cpu_work->work, set_cpu_work);
 	init_completion(&cpu_work->complete);
 
-	policy->max = 1512000;
+	policy->max = CONFIG_MSM_CPU_FREQ_MAX;
 	
 	return 0;
 }
@@ -323,6 +323,7 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 extern bool lmf_screen_state;
 #endif
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void msm_cpu_early_suspend(struct early_suspend *h)
 {
 #ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ
@@ -355,6 +356,7 @@ static struct early_suspend msm_cpu_early_suspend_handler = {
 	.suspend = msm_cpu_early_suspend,
 	.resume = msm_cpu_late_resume,
 };
+#endif
 
 static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
