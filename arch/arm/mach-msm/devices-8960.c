@@ -3260,12 +3260,15 @@ struct platform_device msm_slim_ctrl = {
 static struct msm_dcvs_freq_entry grp3d_freq[] = {
 	{0, 900, 0, 0, 0},
 	{0, 900, 0, 0, 0},
+	{0, 900, 0, 0, 0},
+	{0, 950, 0, 0, 0},
 	{0, 950, 0, 0, 0},
 	{0, 950, 0, 0, 0},
 	{0, 1200, 1, 100, 100},
 };
 
 static struct msm_dcvs_freq_entry grp2d_freq[] = {
+	{0, 900, 0, 0, 0},
 	{0, 900, 0, 0, 0},
 	{0, 950, 1, 100, 100},
 };
@@ -3277,18 +3280,18 @@ static struct msm_dcvs_core_info grp3d_core_info = {
 	},
 	.algo_param	= {
 		.disable_pc_threshold		= 0,
-		.em_win_size_min_us		= 100000,
-		.em_win_size_max_us		= 300000,
-		.em_max_util_pct		= 97,
-		.group_id			= 0,
+		.em_win_size_min_us			= 100000,
+		.em_win_size_max_us			= 300000,
+		.em_max_util_pct			= 97,
+		.group_id					= 0,
 		.max_freq_chg_time_us		= 100000,
-		.slack_mode_dynamic		= 0,
+		.slack_mode_dynamic			= 0,
 		.slack_weight_thresh_pct	= 0,
-		.slack_time_min_us		= 39000,
-		.slack_time_max_us		= 39000,
-		.ss_win_size_min_us		= 1000000,
-		.ss_win_size_max_us		= 1000000,
-		.ss_util_pct			= 95,
+		.slack_time_min_us			= 39000,
+		.slack_time_max_us			= 39000,
+		.ss_win_size_min_us			= 1000000,
+		.ss_win_size_max_us			= 1000000,
+		.ss_util_pct				= 95,
 		.ss_no_corr_below_freq		= 0,
 	},
 	.energy_coeffs	= {
@@ -3303,7 +3306,7 @@ static struct msm_dcvs_core_info grp3d_core_info = {
 	},
 	.power_param	= {
 		.current_temp	= 25,
-		.num_freq	= ARRAY_SIZE(grp3d_freq),
+		.num_freq		= ARRAY_SIZE(grp3d_freq),
 	}
 };
 
@@ -3368,7 +3371,7 @@ static struct msm_bus_vectors grp3d_nominal_low_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(2048),
+		.ib = KGSL_CONVERT_TO_MBPS(2000),
 	},
 };
 
@@ -3377,7 +3380,7 @@ static struct msm_bus_vectors grp3d_nominal_high_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(3968),
+		.ib = KGSL_CONVERT_TO_MBPS(2656),
 	},
 };
 
@@ -3386,7 +3389,7 @@ static struct msm_bus_vectors grp3d_max_vectors[] = {
 		.src = MSM_BUS_MASTER_GRAPHICS_3D,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab = 0,
-		.ib = KGSL_CONVERT_TO_MBPS(4264),
+		.ib = KGSL_CONVERT_TO_MBPS(5120),
 	},
 };
 
@@ -3559,14 +3562,14 @@ static struct kgsl_device_iommu_data kgsl_3d0_iommu_data[] = {
 static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.pwrlevel = {
 		{
-			.gpu_freq = 500000000,
+			.gpu_freq = 480000000,
 			.bus_freq = 4,
 			.io_fraction = 0,
 		},
 		{
-			.gpu_freq = 450000000,
+			.gpu_freq = 400000000,
 			.bus_freq = 4,
-			.io_fraction = 0,
+			.io_fraction = 20,
 		},
 		{
 			.gpu_freq = 400000000,
@@ -3576,7 +3579,12 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 		{
 			.gpu_freq = 300000000,
 			.bus_freq = 3,
-			.io_fraction = 66,
+			.io_fraction = 50,
+		},
+		{
+			.gpu_freq = 300000000,
+			.bus_freq = 2,
+			.io_fraction = 75,
 		},
 		{
 			.gpu_freq = 200000000,
@@ -3594,7 +3602,7 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 		},
 	},
 	.init_level = 3,
-	.num_levels = 7,
+	.num_levels = ARRAY_SIZE(grp3d_freq) + 1,
 	.set_grp_async = NULL,
 	.idle_timeout = HZ/12,
 	.nap_allowed = true,
@@ -3647,6 +3655,10 @@ static struct kgsl_device_iommu_data kgsl_2d0_iommu_data[] = {
 
 static struct kgsl_device_platform_data kgsl_2d0_pdata = {
 	.pwrlevel = {
+		{
+			.gpu_freq = 266667000,
+			.bus_freq = 2,
+		},
 		{
 			.gpu_freq = 200000000,
 			.bus_freq = 2,
@@ -3714,6 +3726,10 @@ static struct resource kgsl_2d1_resources[] = {
 
 static struct kgsl_device_platform_data kgsl_2d1_pdata = {
 	.pwrlevel = {
+		{
+			.gpu_freq = 266667000,
+			.bus_freq = 2,
+		},
 		{
 			.gpu_freq = 200000000,
 			.bus_freq = 2,
