@@ -36,7 +36,6 @@
 #include <linux/hrtimer.h>
 #include <linux/delay.h>
 #include <linux/export.h>
-#include <linux/rq_stats.h>
 #ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
 #include <linux/input.h>
 #include <linux/slab.h>
@@ -242,7 +241,7 @@ static int mp_decision(void) {
     }
     total_time += this_time;
 
-    rq_depth = rq_info.rq_avg;
+    rq_depth = get_rq_info();
     nr_cpu_online = num_online_cpus();
 
     if (nr_cpu_online) {
