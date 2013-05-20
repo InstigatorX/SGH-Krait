@@ -24,6 +24,7 @@
 #include "kgsl_pwrscale.h"
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
+#include "kgsl_sharedmem.h"
 
 #define KGSL_PWRFLAGS_POWER_ON 0
 #define KGSL_PWRFLAGS_CLK_ON   1
@@ -541,7 +542,7 @@ static int kgsl_pwrctrl_idle_timer_store(struct device *dev,
 	/* Let the timeout be requested in ms, but convert to jiffies. */
 	val /= div;
 	pwr->interval_timeout = val;
-	
+
 	mutex_unlock(&device->mutex);
 
 	return count;
@@ -924,7 +925,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 		pdata->set_grp_async();
 
 	if (pdata->num_levels > KGSL_MAX_PWRLEVELS ||
-           pdata->num_levels < 1) {
+	    pdata->num_levels < 1) {
 		KGSL_PWR_ERR(device, "invalid power level count: %d\n",
 					 pdata->num_levels);
 		result = -EINVAL;
@@ -1000,7 +1001,6 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->pm_qos_latency = 501;
 
 	pm_runtime_enable(device->parentdev);
-	//register_early_suspend(&device->display_off);
 	return result;
 
 clk_err:
@@ -1020,7 +1020,6 @@ void kgsl_pwrctrl_close(struct kgsl_device *device)
 	KGSL_PWR_INFO(device, "close device %d\n", device->id);
 
 	pm_runtime_disable(device->parentdev);
-	//unregister_early_suspend(&device->display_off);
 
 	clk_put(pwr->ebi1_clk);
 
@@ -1289,6 +1288,11 @@ EXPORT_SYMBOL(kgsl_pwrctrl_sleep);
 int kgsl_pwrctrl_wake(struct kgsl_device *device)
 {
 	int status = 0;
+	unsigned int context_id;
+	unsigned int state = device->state;
+	unsigned int ts_processed = 0xdeaddead;
+	struct kgsl_context *context;
+
 	kgsl_pwrctrl_request_state(device, KGSL_STATE_ACTIVE);
 	switch (device->state) {
 	case KGSL_STATE_SLUMBER:
@@ -1302,6 +1306,17 @@ int kgsl_pwrctrl_wake(struct kgsl_device *device)
 	case KGSL_STATE_SLEEP:
 		kgsl_pwrctrl_axi(device, KGSL_PWRFLAGS_ON);
 		kgsl_pwrscale_wake(device);
+		kgsl_sharedmem_readl(&device->memstore,
+			(unsigned int *) &context_id,
+			KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL,
+				current_context));
+		context = idr_find(&device->context_idr, context_id);
+		if (context)
+			ts_processed = kgsl_readtimestamp(device, context,
+				KGSL_TIMESTAMP_RETIRED);
+		KGSL_PWR_INFO(device, "Wake from %s state. CTXT: %d RTRD TS: %08X\n",
+			kgsl_pwrstate_to_str(state),
+			context ? context->id : -1, ts_processed);
 		/* fall through */
 	case KGSL_STATE_NAP:
 		/* Turn on the core clocks */
@@ -1409,16 +1424,11 @@ int kgsl_active_count_get(struct kgsl_device *device)
 	BUG_ON(!mutex_is_locked(&device->mutex));
 
 	if (device->active_cnt == 0) {
-		if (device->requested_state == KGSL_STATE_SUSPEND ||
-				device->state == KGSL_STATE_SUSPEND) {
-			mutex_unlock(&device->mutex);
-			wait_for_completion(&device->hwaccess_gate);
-			mutex_lock(&device->mutex);
-		} else if (device->state == KGSL_STATE_DUMP_AND_FT) {
-			mutex_unlock(&device->mutex);
-			wait_for_completion(&device->ft_gate);
-			mutex_lock(&device->mutex);
-		}
+		mutex_unlock(&device->mutex);
+		wait_for_completion(&device->hwaccess_gate);
+		wait_for_completion(&device->ft_gate);
+		mutex_lock(&device->mutex);
+
 		ret = kgsl_pwrctrl_wake(device);
 	}
 	if (ret == 0)
