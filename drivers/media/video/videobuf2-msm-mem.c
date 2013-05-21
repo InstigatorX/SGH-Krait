@@ -239,14 +239,12 @@ void videobuf2_pmem_contig_user_put(struct videobuf2_contig_pmem *mem,
 {
 	if (mem->is_userptr) {
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-#if !defined(CONFIG_MSM_IOMMU)
-#if defined(CACHABLE_MEMORY)
-		ion_unmap_kernel(client, mem->ion_handle);
-#endif
-#else
+	if (IS_ERR_OR_NULL(mem->ion_handle)) {
+		pr_err("%s ION import failed\n", __func__);
+		return;
+	}
 		ion_unmap_iommu(client, mem->ion_handle,
 				domain_num, GEN_POOL);
-#endif
 		ion_free(client, mem->ion_handle);
 #elif CONFIG_ANDROID_PMEM
 		put_pmem_file(mem->file);
