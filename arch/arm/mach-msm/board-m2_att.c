@@ -4079,13 +4079,20 @@ static struct platform_device msm_tsens_device = {
 
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 0,
-	.poll_ms = 250,
-	.limit_temp_degC = 60,
-	.temp_hysteresis_degC = 10,
-	.freq_step = 2,
-	.core_limit_temp_degC = 90,
-	.core_temp_hysteresis_degC = 10,
-	.core_control_mask = 7,
+	.poll_ms = 150,
+	.shutdown_temp = 80,
+
+	.allowed_max_high = 71,
+	.allowed_max_low = 67,
+	.allowed_max_freq = 384000,
+
+	.allowed_mid_high = 68,
+	.allowed_mid_low = 63,
+	.allowed_mid_freq = 810000,
+
+	.allowed_low_high = 65,
+	.allowed_low_low = 60,
+	.allowed_low_freq = 1350000,
 };
 
 /* Bluetooth */
