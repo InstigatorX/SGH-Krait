@@ -23,7 +23,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include <linux/platform_device.h>
+#include <linux/earlysuspend.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
