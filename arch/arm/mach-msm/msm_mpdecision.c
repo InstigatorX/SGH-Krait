@@ -23,7 +23,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include <linux/earlysuspend.h>
+#include <linux/platform_device.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -127,8 +127,8 @@ static struct msm_mpdec_tuners {
 #endif
 };
 
-static unsigned int NwNs_Threshold[8] = {30, 0, 20, 15, 25, 10, 0, 18};
-static unsigned int TwTs_Threshold[8] = {140, 0, 140, 250, 140, 190, 0, 190};
+static unsigned int NwNs_Threshold[8] = {35, 0, 20, 20, 25, 10, 0, 18};
+static unsigned int TwTs_Threshold[8] = {140, 0, 140, 2000, 140, 190, 0, 190};
 
 extern unsigned int get_rq_info(void);
 extern unsigned long acpuclk_get_rate(int);
@@ -1154,7 +1154,9 @@ static int __init msm_mpdec_init(void) {
         queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
                            msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
     register_early_suspend(&msm_mpdec_early_suspend_handler);
+#endif
 
     msm_mpdec_kobject = kobject_create_and_add("msm_mpdecision", kernel_kobj);
     if (msm_mpdec_kobject) {
