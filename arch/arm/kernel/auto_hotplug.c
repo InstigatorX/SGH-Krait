@@ -55,8 +55,8 @@
  * SAMPLING_PERIODS * MIN_SAMPLING_RATE is the minimum
  * load history which will be averaged
  */
-#define SAMPLING_PERIODS	10
-#define INDEX_MAX_VALUE		(SAMPLING_PERIODS - 1)
+#define ONLINE_SAMPLING_PERIODS		1
+#define OFFLINE_SAMPLING_PERIODS	3
 
 /*
  * Load defines:
@@ -67,20 +67,23 @@
 #define ENABLE_LOAD_THRESHOLD		350
 #define DISABLE_LOAD_THRESHOLD		150
 #define DEFAULT_SUSPEND_FREQ 		702000
+#define SAMPLING_RATE				130
 
 static struct delayed_work hotplug_decision_work;
 
 static struct workqueue_struct *wq;
 
-static unsigned int history[SAMPLING_PERIODS];
-static unsigned int index;
-
 static unsigned int suspend_frequency = DEFAULT_SUSPEND_FREQ;
+static unsigned int sampling_rate = SAMPLING_RATE;
+static unsigned int online_sample = 0;
+static unsigned int offline_sample = 0;
+static unsigned int online_sampling_periods = ONLINE_SAMPLING_PERIODS;
+static unsigned int offline_sampling_periods = OFFLINE_SAMPLING_PERIODS;
 
 static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 {
-	unsigned int running, disable_load, enable_load, iowait_avg, avg_running = 0;
-	unsigned int online_cpus, available_cpus, i, j;
+	unsigned int disable_load, enable_load, iowait_avg, avg_running = 0;
+	unsigned int online_cpus, available_cpus;
 #if DEBUG
 	unsigned int k;
 #endif
@@ -88,63 +91,39 @@ static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 	online_cpus = num_online_cpus();
 	available_cpus = CPUS_AVAILABLE;
 	disable_load = DISABLE_LOAD_THRESHOLD;
-	enable_load = ENABLE_LOAD_THRESHOLD;
+	enable_load = ENABLE_LOAD_THRESHOLD;	
 	
-	sched_get_nr_running_avg(&running, &iowait_avg);
-
-	history[index] = running;
-
-#if DEBUG
-	pr_info("online_cpus is: %d\n", online_cpus);
-	pr_info("enable_load is: %d\n", enable_load);
-	pr_info("disable_load is: %d\n", disable_load);
-	pr_info("index is: %d\n", index);
-	pr_info("running is: %d\n", running);
-#endif
-
-	/*
-	 * Use a circular buffer to calculate the average load
-	 * over the sampling periods.
-	 * This will absorb load spikes of short duration where
-	 * we don't want additional cores to be onlined because
-	 * the cpufreq driver should take care of those load spikes.
-	 */
-	for (i = 0, j = index; i < SAMPLING_PERIODS; i++, j--) {
-		avg_running += history[j];
-		if (unlikely(j == 0))
-			j = INDEX_MAX_VALUE;
-	}
-
-	/*
-	 * If we are at the end of the buffer, return to the beginning.
-	 */
-	if (unlikely(index++ == INDEX_MAX_VALUE))
-		index = 0;
-
-#if DEBUG
-	pr_info("array contents: ");
-	for (k = 0; k < SAMPLING_PERIODS; k++) {
-		 pr_info("%d: %d\t",k, history[k]);
-	}
-	pr_info("\n");
-	pr_info("avg_running before division: %d\n", avg_running);
-#endif
-
-	avg_running = avg_running / SAMPLING_PERIODS;
+	sched_get_nr_running_avg(&avg_running, &iowait_avg);
 
 #if DEBUG
 	pr_info("average_running is: %d\n", avg_running);
 #endif
 
 	if ((avg_running >= enable_load) && (online_cpus < available_cpus)) {
-		pr_info("auto_hotplug: Onlining CPU1, avg running: %d\n", avg_running);
-		cpu_up(1);
+#if DEBUG
+	pr_info("auto_hotplug: online_sample %d\n", online_sample);
+#endif
+		if (online_sample >= online_sampling_periods) {
+			pr_info("auto_hotplug: Onlining CPU1, avg running: %d\n", avg_running);
+			cpu_up(1);
+			online_sample--;
+			offline_sample = 0;
+		}
+		online_sample++;
 	} else if (avg_running <= disable_load && (online_cpus == available_cpus)) {
-		pr_info("auto_hotplug: Offlining CPU1, avg running: %d\n", avg_running);
-		cpu_down(1);
+#if DEBUG
+	pr_info("auto_hotplug: offline_sample %d\n", offline_sample);
+#endif
+		if (offline_sample >= offline_sampling_periods) {
+			pr_info("auto_hotplug: Offlining CPU1, avg running: %d\n", avg_running);
+			cpu_down(1);
+			offline_sample--;
+			online_sample = 0;
+		}
+		offline_sample++;
 	}
 
-	queue_delayed_work_on(0, wq, &hotplug_decision_work, msecs_to_jiffies(HZ));
+	queue_delayed_work(wq, &hotplug_decision_work, msecs_to_jiffies(sampling_rate));
 
 }
 
@@ -177,7 +156,7 @@ static void __cpuinit auto_hotplug_late_resume(struct early_suspend *handler)
 
 	cpu_up(1);
 	
-	queue_delayed_work_on(0, wq, &hotplug_decision_work, msecs_to_jiffies(HZ));
+	queue_delayed_work(wq, &hotplug_decision_work, 0);
 }
 
 static struct early_suspend auto_hotplug_suspend = {
@@ -203,7 +182,7 @@ static int __init auto_hotplug_init(void)
 	 */
 	
 	INIT_DELAYED_WORK(&hotplug_decision_work, hotplug_decision_work_fn);
-	queue_delayed_work_on(0, wq, &hotplug_decision_work, HZ * 20);
+	queue_delayed_work(wq, &hotplug_decision_work, HZ * 20);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	register_early_suspend(&auto_hotplug_suspend);
