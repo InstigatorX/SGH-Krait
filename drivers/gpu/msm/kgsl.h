@@ -71,23 +71,6 @@
 #define KGSL_STATS_ADD(_size, _stat, _max) \
 	do { _stat += (_size); if (_stat > _max) _max = _stat; } while (0)
 
-
-#define KGSL_MEMFREE_HIST_SIZE	((int)(PAGE_SIZE * 2))
-
-struct kgsl_memfree_hist_elem {
-	unsigned int pid;
-	unsigned int gpuaddr;
-	unsigned int size;
-	unsigned int flags;
-};
-
-struct kgsl_memfree_hist {
-	void *base_hist_rb;
-	unsigned int size;
-	struct kgsl_memfree_hist_elem *wptr;
-};
-
-
 struct kgsl_device;
 struct kgsl_context;
 
@@ -115,9 +98,6 @@ struct kgsl_driver {
 	struct mutex devlock;
 
 	void *ptpool;
-
-	struct mutex memfree_hist_mutex;
-	struct kgsl_memfree_hist memfree_hist;
 
 	struct {
 		unsigned int vmalloc;
@@ -153,8 +133,7 @@ struct kgsl_memdesc_ops {
 /* shared memory allocation */
 struct kgsl_memdesc {
 	struct kgsl_pagetable *pagetable;
-	void *hostptr; /* kernel virtual address */
-	unsigned long useraddr; /* userspace address */
+	void *hostptr;
 	unsigned int gpuaddr;
 	unsigned int physaddr;
 	unsigned int size;
@@ -186,7 +165,6 @@ struct kgsl_mem_entry {
 	int flags;
 	void *priv_data;
 	struct rb_node node;
-	unsigned int id;
 	unsigned int context_id;
 	/* back pointer to private structure under whose context this
 	* allocation is made */

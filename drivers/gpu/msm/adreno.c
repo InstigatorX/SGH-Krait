@@ -218,7 +218,6 @@ static irqreturn_t adreno_irq_handler(struct kgsl_device *device)
 
 	result = adreno_dev->gpudev->irq_handler(adreno_dev);
 
-	device->pwrctrl.irq_last = 1;
 	if (device->requested_state == KGSL_STATE_NONE) {
 		if (device->pwrctrl.nap_allowed == true) {
 			kgsl_pwrctrl_request_state(device, KGSL_STATE_NAP);
@@ -276,13 +275,6 @@ static int adreno_setup_pt(struct kgsl_device *device,
 	if (result)
 		goto unmap_memstore_desc;
 
-	/*
-	 * Set the mpu end to the last "normal" global memory we use.
-	 * For the IOMMU, this will be used to restrict access to the
-	 * mapped registers.
-	 */
-	device->mh.mpu_range = device->mmu.setstate_memory.gpuaddr +
-				device->mmu.setstate_memory.size;
 	return result;
 
 unmap_memstore_desc:
@@ -764,10 +756,6 @@ static int adreno_of_get_pwrlevels(struct device_node *parent,
 	if (adreno_of_read_property(parent, "qcom,initial-pwrlevel",
 		&pdata->init_level))
 		pdata->init_level = 1;
-	
-	if (adreno_of_read_property(parent, "qcom,step-pwrlevel",
-		&pdata->step_mul))
-		pdata->step_mul = 1;
 
 	if (pdata->init_level < 0 || pdata->init_level > pdata->num_levels) {
 		KGSL_CORE_ERR("Initial power level out of range\n");
@@ -1215,10 +1203,10 @@ static int __devexit adreno_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int adreno_init(struct kgsl_device *device)
+static int adreno_start(struct kgsl_device *device, unsigned int init_ram)
 {
+	int status = -EINVAL;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 
 	if (KGSL_STATE_DUMP_AND_FT != device->state)
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
@@ -1244,8 +1232,9 @@ static int adreno_init(struct kgsl_device *device)
 	if (adreno_dev->gpurev == ADRENO_REV_UNKNOWN) {
 		KGSL_DRV_ERR(device, "Unknown chip ID %x\n",
 			adreno_dev->chip_id);
-		BUG_ON(1);
+		goto error_clk_off;
 	}
+
 
 	/*
 	 * Check if firmware supports the sync lock PM4 packets needed
@@ -1258,7 +1247,19 @@ static int adreno_init(struct kgsl_device *device)
 		adreno_gpulist[adreno_dev->gpulist_index].sync_lock_pfp_ver))
 		device->mmu.flags |= KGSL_MMU_FLAGS_IOMMU_SYNC;
 
-	rb->timestamp[KGSL_MEMSTORE_GLOBAL] = 0;
+	/* Set up the MMU */
+	if (adreno_is_a2xx(adreno_dev)) {
+		/*
+		 * the MH_CLNT_INTF_CTRL_CONFIG registers aren't present
+		 * on older gpus
+		 */
+		if (adreno_is_a20x(adreno_dev)) {
+			device->mh.mh_intf_cfg1 = 0;
+			device->mh.mh_intf_cfg2 = 0;
+		}
+
+		kgsl_mh_start(device);
+	}
 
 	/* Assign correct RBBM status register to hang detect regs
 	 */
@@ -1272,37 +1273,6 @@ static int adreno_init(struct kgsl_device *device)
 		ft_detect_regs[9] = A3XX_RBBM_PERFCTR_SP_6_HI;
 		ft_detect_regs[10] = A3XX_RBBM_PERFCTR_SP_5_LO;
 		ft_detect_regs[11] = A3XX_RBBM_PERFCTR_SP_5_HI;
-	}
-
-	/* Power down the device */
-	kgsl_pwrctrl_disable(device);
-
-	return 0;
-}
-
-static int adreno_start(struct kgsl_device *device)
-{
-	int status = -EINVAL;
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-
-	if (KGSL_STATE_DUMP_AND_FT != device->state)
-		kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
-
-	/* Power up the device */
-	kgsl_pwrctrl_enable(device);
-
-	/* Set up a2xx special case */
-	if (adreno_is_a2xx(adreno_dev)) {
-		/*
-		 * the MH_CLNT_INTF_CTRL_CONFIG registers aren't present
-		 * on older gpus
-		 */
-		if (adreno_is_a20x(adreno_dev)) {
-			device->mh.mh_intf_cfg1 = 0;
-			device->mh.mh_intf_cfg2 = 0;
-		}
-
-		kgsl_mh_start(device);
 	}
 
 	status = kgsl_mmu_start(device);
@@ -1321,7 +1291,7 @@ static int adreno_start(struct kgsl_device *device)
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
 	device->ftbl->irqctrl(device, 1);
 
-	status = adreno_ringbuffer_start(&adreno_dev->ringbuffer);
+	status = adreno_ringbuffer_start(&adreno_dev->ringbuffer, init_ram);
 	if (status == 0) {
 		/* While fault tolerance is on we do not want timer to
 		 * fire and attempt to change any device state */
@@ -1725,12 +1695,7 @@ _adreno_ft_restart_device(struct kgsl_device *device,
 		return 1;
 	}
 
-	if (adreno_init(device)) {
-		KGSL_FT_ERR(device, "Device init failed\n");
-		return 1;
-	}
-
-	if (adreno_start(device)) {
+	if (adreno_start(device, true)) {
 		KGSL_FT_ERR(device, "Device start failed\n");
 		return 1;
 	}
@@ -2440,7 +2405,7 @@ static unsigned int adreno_isidle(struct kgsl_device *device)
 	if (device->state == KGSL_STATE_ACTIVE) {
 		/* Is the ring buffer is empty? */
 		GSL_RB_GET_READPTR(rb, &rb->rptr);
-		if (rb->rptr == rb->wptr) {
+		if (!device->active_cnt && (rb->rptr == rb->wptr)) {
 			/*
 			 * Are there interrupts pending? If so then pretend we
 			 * are not idle - this avoids the possiblity that we go
@@ -3184,20 +3149,15 @@ static void adreno_power_stats(struct kgsl_device *device,
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-	unsigned int cycles = 0;
+	unsigned int cycles;
 
-	/*
-	 * Get the busy cycles counted since the counter was last reset.
-	 * If we're not currently active, there shouldn't have been
-	 * any cycles since the last time this function was called.
-	 */
-	if (device->state == KGSL_STATE_ACTIVE)
-		cycles = adreno_dev->gpudev->busy_cycles(adreno_dev);
+	/* Get the busy cycles counted since the counter was last reset */
+	/* Calling this function also resets and restarts the counter */
 
-	/*
-	 * In order to calculate idle you have to have run the algorithm
-	 * at least once to get a start time.
-	 */
+	cycles = adreno_dev->gpudev->busy_cycles(adreno_dev);
+
+	/* In order to calculate idle you have to have run the algorithm *
+	 * at least once to get a start time. */
 	if (pwr->time != 0) {
 		s64 tmp = ktime_to_us(ktime_get());
 		stats->total_time = tmp - pwr->time;
@@ -3244,7 +3204,6 @@ static const struct kgsl_functable adreno_functable = {
 	.idle = adreno_idle,
 	.isidle = adreno_isidle,
 	.suspend_context = adreno_suspend_context,
-	.init = adreno_init,
 	.start = adreno_start,
 	.stop = adreno_stop,
 	.getproperty = adreno_getproperty,

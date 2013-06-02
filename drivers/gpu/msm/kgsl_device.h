@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -73,8 +73,7 @@ struct kgsl_functable {
 	int (*idle) (struct kgsl_device *device);
 	unsigned int (*isidle) (struct kgsl_device *device);
 	int (*suspend_context) (struct kgsl_device *device);
-	int (*init) (struct kgsl_device *device);
-	int (*start) (struct kgsl_device *device);
+	int (*start) (struct kgsl_device *device, unsigned int init_ram);
 	int (*stop) (struct kgsl_device *device);
 	int (*getproperty) (struct kgsl_device *device,
 		enum kgsl_property_type type, void *value,
@@ -202,6 +201,7 @@ struct kgsl_device {
 	int pm_dump_enable;
 	struct kgsl_pwrscale pwrscale;
 	struct kobject pwrscale_kobj;
+	struct pm_qos_request pm_qos_req_dma;
 	struct work_struct ts_expired_ws;
 	struct list_head events;
 	struct list_head events_pending_list;
@@ -265,14 +265,7 @@ struct kgsl_process_private {
 	unsigned int refcnt;
 	pid_t pid;
 	spinlock_t mem_lock;
-
-	/* General refcount for process private struct obj */
-	struct kref refcount;
-	/* Mutex to synchronize access to each process_private struct obj */
-	struct mutex process_private_mutex;
-
 	struct rb_root mem_rb;
-	struct idr mem_idr;
 	struct kgsl_pagetable *pagetable;
 	struct list_head list;
 	struct kobject kobj;
@@ -449,6 +442,25 @@ static inline void
 kgsl_context_put(struct kgsl_context *context)
 {
 	kref_put(&context->refcount, kgsl_context_destroy);
+}
+
+/**
+ * kgsl_active_count_put - Decrease the device active count
+ * @device: Pointer to a KGSL device
+ *
+ * Decrease the active count for the KGSL device and trigger the suspend_gate
+ * completion if it hits zero
+ */
+static inline void
+kgsl_active_count_put(struct kgsl_device *device)
+{
+	if (device->active_cnt == 1)
+		INIT_COMPLETION(device->suspend_gate);
+
+	device->active_cnt--;
+
+	if (device->active_cnt == 0)
+		complete(&device->suspend_gate);
 }
 
 #endif  /* __KGSL_DEVICE_H */

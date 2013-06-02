@@ -319,7 +319,7 @@ int adreno_ringbuffer_load_pfp_ucode(struct kgsl_device *device)
 	return 0;
 }
 
-int adreno_ringbuffer_start(struct adreno_ringbuffer *rb)
+int adreno_ringbuffer_start(struct adreno_ringbuffer *rb, unsigned int init_ram)
 {
 	int status;
 	/*cp_rb_cntl_u cp_rb_cntl; */
@@ -330,6 +330,9 @@ int adreno_ringbuffer_start(struct adreno_ringbuffer *rb)
 
 	if (rb->flags & KGSL_FLAGS_STARTED)
 		return 0;
+
+	if (init_ram)
+		rb->timestamp[KGSL_MEMSTORE_GLOBAL] = 0;
 
 	kgsl_sharedmem_set(&rb->memptrs_desc, 0, 0,
 			   sizeof(struct kgsl_rbmemptrs));
@@ -978,7 +981,6 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	unsigned int i;
 	struct adreno_context *drawctxt;
 	unsigned int start_index = 0;
-	int ret;
 
 	if (device->state & KGSL_STATE_HUNG)
 		return -EBUSY;
@@ -1035,15 +1037,9 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 		if (unlikely(adreno_dev->ib_check_level >= 1 &&
 		    !_parse_ibs(dev_priv, ibdesc[i].gpuaddr,
 				ibdesc[i].sizedwords))) {
-				ret = -EINVAL;
-				goto done;
-				}
-
-				if (ibdesc[i].sizedwords == 0) {
-					ret = -EINVAL;
-					goto done;
-				}
-
+			kfree(link);
+			return -EINVAL;
+		}
 		*cmds++ = CP_HDR_INDIRECT_BUFFER_PFD;
 		*cmds++ = ibdesc[i].gpuaddr;
 		*cmds++ = ibdesc[i].sizedwords;
@@ -1066,6 +1062,8 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	KGSL_CMD_INFO(device, "ctxt %d g %08x numibs %d ts %d\n",
 		context->id, (unsigned int)ibdesc, numibs, *timestamp);
 
+	kfree(link);
+
 #ifdef CONFIG_MSM_KGSL_CFF_DUMP
 	/*
 	 * insert wait for idle after every IB1
@@ -1081,15 +1079,9 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	 */
 	if (drawctxt->flags & CTXT_FLAGS_GPU_HANG_FT) {
 		drawctxt->flags &= ~CTXT_FLAGS_GPU_HANG_FT;
-		ret = -EPROTO;
+		return -EPROTO;
 	} else
-		ret = 0;
-
-done:
-	device->pwrctrl.irq_last = 0;
-
-	kfree(link);
-	return ret;
+		return 0;
 }
 
 static void _turn_preamble_on_for_ib_seq(struct adreno_ringbuffer *rb,

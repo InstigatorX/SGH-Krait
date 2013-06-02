@@ -162,49 +162,14 @@ memdesc_sg_phys(struct kgsl_memdesc *memdesc,
 	return 0;
 }
 
-/*
- * kgsl_memdesc_is_global - is this a globally mapped buffer?
- * @memdesc: the memdesc
- *
- * Returns nonzero if this is a global mapping, 0 otherwise
- */
-static inline int kgsl_memdesc_is_global(const struct kgsl_memdesc *memdesc)
-{
-	return (memdesc->priv & KGSL_MEMDESC_GLOBAL) != 0;
-}
-
-/*
- * kgsl_memdesc_protflags - get mmu protection flags
- * @memdesc - the memdesc
- * Returns a mask of GSL_PT_PAGE* values based on the
- * memdesc flags.
- */
-static inline unsigned int
-kgsl_memdesc_protflags(const struct kgsl_memdesc *memdesc)
-{
-	unsigned int protflags = GSL_PT_PAGE_RV;
-	if (!(memdesc->flags & KGSL_MEMFLAGS_GPUREADONLY))
-		protflags |= GSL_PT_PAGE_WV;
-	return protflags;
-}
-
 static inline int
 kgsl_allocate(struct kgsl_memdesc *memdesc,
 		struct kgsl_pagetable *pagetable, size_t size)
 {
-	int ret;
-	memdesc->priv |= (KGSL_MEMTYPE_KERNEL << KGSL_MEMTYPE_SHIFT);
 	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE)
 		return kgsl_sharedmem_ebimem(memdesc, pagetable, size);
-
-	ret = kgsl_sharedmem_page_alloc(memdesc, pagetable, size);
-	if (ret)
-		return ret;
-	ret = kgsl_mmu_map(pagetable, memdesc,
-			   kgsl_memdesc_protflags(memdesc));
-	if (ret)
-		kgsl_sharedmem_free(memdesc);
-	return ret;
+	memdesc->flags |= (KGSL_MEMTYPE_KERNEL << KGSL_MEMTYPE_SHIFT);
+	return kgsl_sharedmem_page_alloc(memdesc, pagetable, size);
 }
 
 static inline int
@@ -213,9 +178,6 @@ kgsl_allocate_user(struct kgsl_memdesc *memdesc,
 		size_t size, unsigned int flags)
 {
 	int ret;
-
-	if (size == 0)
-		return -EINVAL;
 
 	memdesc->flags = flags;
 
