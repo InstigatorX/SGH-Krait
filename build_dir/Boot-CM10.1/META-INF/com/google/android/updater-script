@@ -33,8 +33,6 @@ ui_print("Updating kernel modules...");
 
 run_program("/sbin/sleep", "1");
 
-delete("/system/lib/hw/power.msm8960.so");
-
 assert(
     delete_recursive("/system/lib/modules"),
     package_extract_dir("realsystem", "/system")
