@@ -555,7 +555,7 @@ int __devinit msm_thermal_init(struct msm_thermal_data *pdata)
     memcpy(&msm_thermal_info, pdata, sizeof(struct msm_thermal_data));
 
     enabled = 1;
-    check_temp_workq=alloc_workqueue("msm_thermal", WQ_UNBOUND | WQ_RESCUER, 1);
+    check_temp_workq=create_freezable_workqueue("msm_thermal");
     if (!check_temp_workq)
         BUG_ON(ENOMEM);
     INIT_DELAYED_WORK(&check_temp_work, check_temp);
