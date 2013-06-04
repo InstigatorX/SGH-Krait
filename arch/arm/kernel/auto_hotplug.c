@@ -70,17 +70,15 @@
  * ENABLE is the load which is required to enable CPU1
  * DISABLE is the load at which CPU1 is disabled
  */
-#define ENABLE_LOAD_THRESHOLD		30
-#define DISABLE_LOAD_THRESHOLD		20
+#define ENABLE_LOAD_THRESHOLD		40
+#define DISABLE_LOAD_THRESHOLD		25
 #define DEFAULT_SUSPEND_FREQ 		702000
-#define MIN_ENABLE_FREQ				594000
 
 static struct delayed_work hotplug_decision_work;
 
 static struct workqueue_struct *wq;
 
 static unsigned int suspend_frequency = DEFAULT_SUSPEND_FREQ;
-static unsigned int min_enable_freq = MIN_ENABLE_FREQ;
 static unsigned int online_sample = 1;
 static unsigned int offline_sample = 1;
 static unsigned int online_sampling_periods = ONLINE_SAMPLING_PERIODS;
@@ -94,13 +92,10 @@ static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 {
 	unsigned int avg_running;
 	unsigned int online_cpus, available_cpus, current_freq;
-	//unsigned int iowait_avg;
 
 	online_cpus = num_online_cpus();
 	available_cpus = CPUS_AVAILABLE;
 	
-	current_freq = acpuclk_get_rate(0);
-	//sched_get_nr_running_avg(&avg_running, &iowait_avg);
 	avg_running = report_load_at_max_freq();
 
 #if DEBUG
@@ -109,11 +104,8 @@ static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 
 	if ((avg_running >= enable_load) && (online_cpus < available_cpus)) {
 		if (online_sample >= online_sampling_periods) {		
-			if (current_freq >= min_enable_freq) {
-				cpu_up(1);
-				pr_info("auto_hotplug: CPU1 up, avg running: %d\n", avg_running);
-				pr_info("auto_hotplug: CPU1 up, freq: %dMHz\n", current_freq);
-			}
+			cpu_up(1);
+			//pr_info("auto_hotplug: CPU1 up, avg running: %d\n", avg_running);
 		} else {
 			online_sample++;
 #if DEBUG
@@ -121,9 +113,9 @@ static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 #endif
 		}
 		offline_sample = 1;
-	} else if ((avg_running / 2) <= disable_load && (online_cpus == available_cpus)) {
+	} else if (avg_running <= (disable_load << 1) && (online_cpus == available_cpus)) {
 		if (offline_sample >= offline_sampling_periods) {
-			pr_info("auto_hotplug: CPU1 down, avg running: %d\n", avg_running);
+			//pr_info("auto_hotplug: CPU1 down, avg running: %d\n", avg_running);
 			cpu_down(1);
 		} else {
 			offline_sample++;
@@ -133,7 +125,8 @@ static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 		}
 		online_sample = 1;
 	}
-	queue_delayed_work_on(0, wq, &hotplug_decision_work, msecs_to_jiffies(HZ) * sampling_multiplier);
+	queue_delayed_work_on(0, wq, &hotplug_decision_work, msecs_to_jiffies(HZ) 
+							* sampling_multiplier);
 }
 
 static ssize_t show_enable_load(struct kobject *kobj,
