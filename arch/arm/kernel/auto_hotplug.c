@@ -30,11 +30,16 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/cpu.h>
 #include <linux/workqueue.h>
 #include <linux/sched.h>
+#include <linux/rq_stats.h>
+#include <linux/cpufreq.h>
 
 #include <mach/cpufreq.h>
+
+#include "../mach-msm/acpuclock.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -55,8 +60,9 @@
  * SAMPLING_PERIODS * MIN_SAMPLING_RATE is the minimum
  * load history which will be averaged
  */
-#define ONLINE_SAMPLING_PERIODS		1
-#define OFFLINE_SAMPLING_PERIODS	3
+#define ONLINE_SAMPLING_PERIODS		3
+#define OFFLINE_SAMPLING_PERIODS	6
+#define SAMPLING_MULTIPLIER			1
 
 /*
  * Load defines:
@@ -64,68 +70,200 @@
  * ENABLE is the load which is required to enable CPU1
  * DISABLE is the load at which CPU1 is disabled
  */
-#define ENABLE_LOAD_THRESHOLD		350
-#define DISABLE_LOAD_THRESHOLD		150
+#define ENABLE_LOAD_THRESHOLD		30
+#define DISABLE_LOAD_THRESHOLD		20
 #define DEFAULT_SUSPEND_FREQ 		702000
-#define SAMPLING_RATE				130
+#define MIN_ENABLE_FREQ				594000
 
 static struct delayed_work hotplug_decision_work;
 
 static struct workqueue_struct *wq;
 
 static unsigned int suspend_frequency = DEFAULT_SUSPEND_FREQ;
-static unsigned int sampling_rate = SAMPLING_RATE;
-static unsigned int online_sample = 0;
-static unsigned int offline_sample = 0;
+static unsigned int min_enable_freq = MIN_ENABLE_FREQ;
+static unsigned int online_sample = 1;
+static unsigned int offline_sample = 1;
 static unsigned int online_sampling_periods = ONLINE_SAMPLING_PERIODS;
 static unsigned int offline_sampling_periods = OFFLINE_SAMPLING_PERIODS;
+static unsigned int sampling_multiplier = SAMPLING_MULTIPLIER;
+
+static unsigned int disable_load = DISABLE_LOAD_THRESHOLD;
+static unsigned int enable_load = ENABLE_LOAD_THRESHOLD;	
 
 static void __cpuinit hotplug_decision_work_fn(struct work_struct *work)
 {
-	unsigned int disable_load, enable_load, iowait_avg, avg_running = 0;
-	unsigned int online_cpus, available_cpus;
-#if DEBUG
-	unsigned int k;
-#endif
+	unsigned int avg_running;
+	unsigned int online_cpus, available_cpus, current_freq;
+	//unsigned int iowait_avg;
 
 	online_cpus = num_online_cpus();
 	available_cpus = CPUS_AVAILABLE;
-	disable_load = DISABLE_LOAD_THRESHOLD;
-	enable_load = ENABLE_LOAD_THRESHOLD;	
 	
-	sched_get_nr_running_avg(&avg_running, &iowait_avg);
+	current_freq = acpuclk_get_rate(0);
+	//sched_get_nr_running_avg(&avg_running, &iowait_avg);
+	avg_running = report_load_at_max_freq();
 
 #if DEBUG
 	pr_info("average_running is: %d\n", avg_running);
 #endif
 
 	if ((avg_running >= enable_load) && (online_cpus < available_cpus)) {
+		if (online_sample >= online_sampling_periods) {		
+			if (current_freq >= min_enable_freq) {
+				cpu_up(1);
+				pr_info("auto_hotplug: CPU1 up, avg running: %d\n", avg_running);
+				pr_info("auto_hotplug: CPU1 up, freq: %dMHz\n", current_freq);
+			}
+		} else {
+			online_sample++;
 #if DEBUG
-	pr_info("auto_hotplug: online_sample %d\n", online_sample);
+	pr_info("auto_hotplug: online sample%d: %d\n", online_sample, avg_running);
 #endif
-		if (online_sample >= online_sampling_periods) {
-			pr_info("auto_hotplug: Onlining CPU1, avg running: %d\n", avg_running);
-			cpu_up(1);
-			online_sample--;
-			offline_sample = 0;
 		}
-		online_sample++;
-	} else if (avg_running <= disable_load && (online_cpus == available_cpus)) {
-#if DEBUG
-	pr_info("auto_hotplug: offline_sample %d\n", offline_sample);
-#endif
+		offline_sample = 1;
+	} else if ((avg_running / 2) <= disable_load && (online_cpus == available_cpus)) {
 		if (offline_sample >= offline_sampling_periods) {
-			pr_info("auto_hotplug: Offlining CPU1, avg running: %d\n", avg_running);
+			pr_info("auto_hotplug: CPU1 down, avg running: %d\n", avg_running);
 			cpu_down(1);
-			offline_sample--;
-			online_sample = 0;
+		} else {
+			offline_sample++;
+#if DEBUG
+	pr_info("auto_hotplug: offline sample%d: %d\n", offline_sample, avg_running);
+#endif
 		}
-		offline_sample++;
+		online_sample = 1;
 	}
-
-	queue_delayed_work(wq, &hotplug_decision_work, msecs_to_jiffies(sampling_rate));
-
+	queue_delayed_work_on(0, wq, &hotplug_decision_work, msecs_to_jiffies(HZ) * sampling_multiplier);
 }
+
+static ssize_t show_enable_load(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", enable_load);
+}
+
+static ssize_t store_enable_load(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	int ret;
+	long unsigned int val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	enable_load = val;
+	return count;
+}
+
+static struct global_attr enable_load_attr = __ATTR(enable_load, 0644,
+		show_enable_load, store_enable_load);
+		
+static ssize_t show_disable_load(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", disable_load);
+}
+
+static ssize_t store_disable_load(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	int ret;
+	long unsigned int val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	disable_load = val;
+	return count;
+}
+
+static struct global_attr disable_load_attr = __ATTR(disable_load, 0644,
+		show_disable_load, store_disable_load);
+
+static ssize_t show_online_samples(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", online_sampling_periods);
+}
+
+static ssize_t store_online_samples(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	int ret;
+	long unsigned int val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	online_sampling_periods = val;
+	return count;
+}
+
+static struct global_attr online_samples_attr = __ATTR(online_samples, 0644,
+		show_online_samples, store_online_samples);
+
+static ssize_t show_offline_samples(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", offline_sampling_periods);
+}
+
+static ssize_t store_offline_samples(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	int ret;
+	long unsigned int val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	offline_sampling_periods = val;
+	return count;
+}
+
+static struct global_attr offline_samples_attr = __ATTR(offline_samples, 0644,
+		show_offline_samples, store_offline_samples);
+		
+static ssize_t show_sampling_multiplier(struct kobject *kobj,
+				     struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", sampling_multiplier);
+}
+
+static ssize_t store_sampling_multiplier(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	int ret;
+	long unsigned int val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+	sampling_multiplier = val;
+	return count;
+}
+
+static struct global_attr sampling_multiplier_attr = __ATTR(sampling_multiplier, 0644,
+		show_sampling_multiplier, store_sampling_multiplier);
+
+static struct attribute *auto_hotplug_attributes[] = {
+	&enable_load_attr.attr,
+	&disable_load_attr.attr,
+	&online_samples_attr.attr,
+	&offline_samples_attr.attr,
+	&sampling_multiplier_attr.attr,
+	NULL,
+};
+
+static struct attribute_group auto_hotplug_attr_group = {
+	.attrs = auto_hotplug_attributes,
+	.name = "auto_hotplug",
+};
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void auto_hotplug_early_suspend(struct early_suspend *handler)
@@ -140,7 +278,7 @@ static void auto_hotplug_early_suspend(struct early_suspend *handler)
 	cpu_down(1);
 	
 	/* limit max frequency */
-    msm_cpufreq_set_freq_limits(0, MSM_CPUFREQ_NO_LIMIT, 
+    msm_cpufreq_set_freq_limits(0, CONFIG_MSM_CPU_FREQ_MIN, 
             suspend_frequency);
     pr_info("Cpulimit: Early suspend - limit max frequency to: %dMHz\n",
             suspend_frequency/1000);
@@ -156,7 +294,7 @@ static void __cpuinit auto_hotplug_late_resume(struct early_suspend *handler)
 
 	cpu_up(1);
 	
-	queue_delayed_work(wq, &hotplug_decision_work, 0);
+	queue_delayed_work(wq, &hotplug_decision_work, HZ * 2);
 }
 
 static struct early_suspend auto_hotplug_suspend = {
@@ -168,14 +306,19 @@ static struct early_suspend auto_hotplug_suspend = {
 
 static int __init auto_hotplug_init(void)
 {
-	pr_info("auto_hotplug: v0.220 by _thalamus\n");
+	int rc;
+	
+	pr_info("auto_hotplug: Original: v0.220 by _thalamus\n");
+	pr_info("auto_hotplug: New: v1.1 by InstigatorX\n");
 	pr_info("auto_hotplug: %d CPUs detected\n", CPUS_AVAILABLE);
 
-	wq = alloc_workqueue("auto_hotplug_workqueue",
-                         WQ_UNBOUND | WQ_RESCUER | WQ_FREEZABLE, 1);
+	wq = create_freezable_workqueue("auto_hotplug_workqueue");
     
     if (!wq)
         return -ENOMEM;
+        
+    rc = sysfs_create_group(cpufreq_global_kobject,
+				&auto_hotplug_attr_group);
         
 	/*
 	 * Give the system time to boot before fiddling with hotplugging.
