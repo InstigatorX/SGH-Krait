@@ -44,22 +44,26 @@
  */
 
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
-#define DEF_FREQUENCY_UP_THRESHOLD			(75)
-#define DEF_SAMPLING_DOWN_FACTOR			(1)
+#define DEF_FREQUENCY_UP_THRESHOLD		(75)
+#define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define BOOSTED_SAMPLING_DOWN_FACTOR		(10)
-#define MAX_SAMPLING_DOWN_FACTOR			(100000)
+#define MAX_SAMPLING_DOWN_FACTOR		(100000)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(3)
 #define MICRO_FREQUENCY_UP_THRESHOLD		(75)
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(15000)
-#define MIN_FREQUENCY_UP_THRESHOLD			(11)
-#define MAX_FREQUENCY_UP_THRESHOLD			(100)
+#define MIN_FREQUENCY_UP_THRESHOLD		(11)
+#define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
-#define DEFAULT_FREQ_BOOST_TIME				(3500000)
-#define DEF_SAMPLING_RATE					(50000)
-#define BOOSTED_SAMPLING_RATE				(15000)
-#define DBS_INPUT_EVENT_MIN_FREQ			(810000)
-#define DBS_SYNC_FREQ						(702000)
-#define DBS_OPTIMAL_FREQ					(1134000)
+#define DEFAULT_FREQ_BOOST_TIME			(2500000)
+#define DEF_SAMPLING_RATE			(50000)
+#define BOOSTED_SAMPLING_RATE			(15000)
+#define DBS_INPUT_EVENT_MIN_FREQ		(1026000)
+#define DBS_SYNC_FREQ				(702000)
+#define DBS_OPTIMAL_FREQ			(1296000)
+
+#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
+#define DBS_PERFLOCK_MIN_FREQ			(594000)
+#endif
 
 static u64 freq_boosted_time;
 /*
@@ -90,10 +94,10 @@ static unsigned long stored_sampling_rate;
 #define TIMER_RATE_BOOST_TIME 2500000
 static int sampling_rate_boosted;
 static u64 sampling_rate_boosted_time;
-static unsigned int current_sampling_rate = DEF_SAMPLING_RATE;
+static unsigned int current_sampling_rate;
 
 #ifdef CONFIG_CPUFREQ_ID_PERFLOCK
-static unsigned int saved_policy_min;
+static unsigned int saved_policy_min = 0;
 #endif
 
 static void do_dbs_timer(struct work_struct *work);
@@ -1348,6 +1352,18 @@ static void do_dbs_timer(struct work_struct *work)
 		if (rq_persist_count > 0)
 			rq_persist_count--;
 
+#ifdef CONFIG_CPUFREQ_ID_PERFLOCK
+	if (cpu == 0) {
+		if (num_online_cpus() >= 2) {
+			if (saved_policy_min != 0)
+				policy->min = saved_policy_min;
+		} else if (num_online_cpus() == 1) {
+			saved_policy_min = policy->min;
+			policy->min = DBS_PERFLOCK_MIN_FREQ;
+		}
+	}
+#endif
+
 #ifdef CONFIG_CPUFREQ_LIMIT_MAX_FREQ
 	if (rq_persist_count > 3) {
 		lmf_browsing_state = false;
@@ -1677,7 +1693,9 @@ static void dbs_refresh_callback(struct work_struct *work)
 
 	if (policy->cur < DBS_INPUT_EVENT_MIN_FREQ) {
 #if 0
-	pr_info("%s: set cpufreq to DBS_INPUT_EVENT_MIN_FREQ(%d) due to input events!\n", __func__, DBS_INPUT_EVENT_MIN_FREQ);
+		pr_info("%s: set cpufreq to DBS_INPUT_EVENT_MIN_FREQ(%d) \
+			directly due to input events!\n", __func__, \
+			DBS_INPUT_EVENT_MIN_FREQ);
 #endif
 		/*
 		 * Arch specific cpufreq driver may fail.
@@ -1765,7 +1783,6 @@ static int dbs_input_connect(struct input_handler *handler,
 	if (error)
 		goto err1;
 
-	pr_info("%s found and connected!\n", dev->name);
 	return 0;
 err1:
 	input_unregister_handle(handle);
