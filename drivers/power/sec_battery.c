@@ -2801,11 +2801,11 @@ static __devinit int sec_bat_probe(struct platform_device *pdev)
 #endif
 
 	INIT_WORK(&info->monitor_work, sec_bat_monitor_work);
-	INIT_DELAYED_WORK_DEFERRABLE(&info->cable_work, sec_bat_cable_work);
+	INIT_DEFERRABLE_WORK(&info->cable_work, sec_bat_cable_work);
 
-	INIT_DELAYED_WORK_DEFERRABLE(&info->measure_work, sec_bat_measure_work);
+	INIT_DEFERRABLE_WORK(&info->measure_work, sec_bat_measure_work);
 
-	INIT_DELAYED_WORK_DEFERRABLE(&info->otg_work, sec_otg_work);
+	INIT_DEFERRABLE_WORK(&info->otg_work, sec_otg_work);
 
 	pdata->get_cable_type();
 
