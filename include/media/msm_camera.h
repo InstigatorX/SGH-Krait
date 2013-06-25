@@ -481,10 +481,28 @@ struct msm_camera_cfg_cmd {
 #define CMD_AXI_CFG_VIDEO_ALL_CHNLS 50
 #define CMD_VFE_BUFFER_RELEASE 51
 
-#define CMD_AXI_CFG_PRIM		0xF1
-#define CMD_AXI_CFG_PRIM_ALL_CHNLS	0xF2
-#define CMD_AXI_CFG_SEC			0xF4
-#define CMD_AXI_CFG_SEC_ALL_CHNLS	0xF8
+#define CMD_AXI_CFG_PRIM               BIT(8)
+#define CMD_AXI_CFG_PRIM_ALL_CHNLS     BIT(9)
+#define CMD_AXI_CFG_SEC                BIT(10)
+#define CMD_AXI_CFG_SEC_ALL_CHNLS      BIT(11)
+#define CMD_AXI_CFG_TERT1              BIT(12)
+#define CMD_AXI_CFG_TERT2              BIT(13)
+#define CMD_AXI_CFG_TERT3              BIT(14)
+
+#define CMD_AXI_START  0xE1
+#define CMD_AXI_STOP   0xE2
+#define CMD_AXI_RESET  0xE3
+#define CMD_AXI_ABORT  0xE4
+#define CMD_AXI_STOP_RECOVERY  0xE5
+
+
+
+#define AXI_CMD_PREVIEW      BIT(0)
+#define AXI_CMD_CAPTURE      BIT(1)
+#define AXI_CMD_RECORD       BIT(2)
+#define AXI_CMD_ZSL          BIT(3)
+#define AXI_CMD_RAW_CAPTURE  BIT(4)
+#define AXI_CMD_LIVESHOT     BIT(5)
 
 /* vfe config command: config command(from config thread)*/
 struct msm_vfe_cfg_cmd {
