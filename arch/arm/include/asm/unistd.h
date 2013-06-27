@@ -414,6 +414,7 @@
 #define __ARM_NR_usr26			(__ARM_NR_BASE+3)
 #define __ARM_NR_usr32			(__ARM_NR_BASE+4)
 #define __ARM_NR_set_tls		(__ARM_NR_BASE+5)
+#define __NR_syscalls  			(384)
 
 /*
  * *NOTE*: This is a ghost syscall private to the kernel.  Only the
